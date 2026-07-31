@@ -1,0 +1,48 @@
+{
+  "name": "@donnyautomation/dex-data-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for live multi-chain DEX market data: token prices, liquidity depth, pool reserves, best execution venue, liquidity risk and pre-trade slippage across BNB Chain, Polygon, Arbitrum, Base and Avalanche. Any ERC-20 by ticker or contract address. Free tier, no wallet required.",
+  "type": "module",
+  "bin": {
+    "dex-data-mcp": "server.mjs"
+  },
+  "main": "server.mjs",
+  "files": [
+    "server.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "dex",
+    "defi",
+    "uniswap",
+    "pancakeswap",
+    "token-price",
+    "liquidity",
+    "slippage",
+    "price-impact",
+    "onchain",
+    "ethereum",
+    "base",
+    "arbitrum",
+    "polygon",
+    "avalanche",
+    "bnb-chain",
+    "x402"
+  ],
+  "author": "donnyautomation",
+  "license": "MIT",
+  "homepage": "https://x402.donnyautomation.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/donnywin85/dex-data-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/donnywin85/dex-data-mcp/issues"
+  }
+}
