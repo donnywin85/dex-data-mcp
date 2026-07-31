@@ -118,12 +118,16 @@ const TOOLS = [
 // error the model has to guess at.
 function paywallMessage(tool, url) {
   return [
-    `This endpoint requires an x402 micropayment (USDC on Base).`,
+    `Daily free allowance used up for this caller, so this call needs payment.`,
     ``,
     `  ${url}`,
     ``,
-    `Set DEX_API_KEY for a prepaid key, or pay per call with an x402-capable client.`,
-    `Free alternative: the "list_chains" tool, and ${BASE}/demo/* routes, need no payment.`,
+    `The allowance resets every 24h — see X-FreeTier-Remaining on any response,`,
+    `or ${BASE}/free-tier for the current limit.`,
+    ``,
+    `To keep going now: pay per call with an x402-capable client (USDC on Base),`,
+    `or set DEX_API_KEY if you have a prepaid key.`,
+    `Still free: the "list_chains" tool and ${BASE}/demo/* routes.`,
   ].join('\n');
 }
 
@@ -141,7 +145,9 @@ async function callTool(name, args) {
   const prefix = a.chain && a.chain !== 'bsc' ? `/${a.chain}` : '';
   const url = `${BASE}${prefix}${route}`;
 
-  const headers = { accept: 'application/json' };
+  // Identify the client so free-tier usage is attributable to MCP rather than
+  // lost among anonymous traffic - this is how we learn which channel works.
+  const headers = { accept: 'application/json', 'user-agent': 'dex-data-mcp/1.0 (+https://github.com/donnywin85/dex-data-mcp)' };
   if (process.env.DEX_API_KEY) headers.authorization = `Bearer ${process.env.DEX_API_KEY}`;
 
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
