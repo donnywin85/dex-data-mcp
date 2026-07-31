@@ -1,0 +1,78 @@
+# .github/workflows/publish.yml — publish to npm from CI, so the token never
+# needs to reach a laptop.
+#
+# WHY CI RATHER THAN A LOCAL `npm publish`: the npm token is the last thing
+# blocking the official MCP Server Registry (which hosts metadata only, so an
+# npm package is a hard prerequisite). Putting the token in a GitHub Actions
+# secret means it can be added from a phone browser, never lands on disk, and
+# never passes through a chat log. It also means releases keep working from any
+# machine, or none.
+#
+# Trigger: push a tag like v1.0.0, or run it by hand from the Actions tab —
+# both of which are doable from the GitHub mobile UI.
+
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write        # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # The server is dependency-free on purpose, so there is nothing to install.
+      # Still prove it parses and speaks MCP before anything is published — a
+      # broken package on npm is far more expensive to fix than a failed job.
+      - name: Syntax check
+        run: node --check server.mjs
+
+      - name: Smoke test the MCP protocol
+        run: |
+          node -e '
+            const { spawn } = require("child_process");
+            const p = spawn(process.execPath, ["server.mjs"], { stdio: ["pipe", "pipe", "inherit"] });
+            let buf = ""; const got = [];
+            p.stdout.on("data", d => { buf += d;
+              let i; while ((i = buf.indexOf("\n")) >= 0) {
+                const l = buf.slice(0, i); buf = buf.slice(i + 1);
+                if (l.trim()) got.push(JSON.parse(l));
+              } });
+            p.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }) + "\n");
+            p.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }) + "\n");
+            setTimeout(() => {
+              p.kill();
+              const init = got.find(r => r.id === 1), list = got.find(r => r.id === 2);
+              if (!init?.result?.serverInfo?.name) { console.error("initialize failed"); process.exit(1); }
+              const n = list?.result?.tools?.length || 0;
+              if (n < 6) { console.error(`expected 6 tools, got ${n}`); process.exit(1); }
+              console.log(`OK: ${init.result.serverInfo.name}, ${n} tools`);
+            }, 4000);
+          '
+
+      - name: Pack (dry run)
+        if: inputs.dry_run
+        run: npm pack --dry-run
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
