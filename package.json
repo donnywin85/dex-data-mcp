@@ -40,10 +40,9 @@
   "homepage": "https://x402.donnyautomation.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/donnywin85/x402-gateway.git",
-    "directory": "mcp"
+    "url": "git+https://github.com/donnywin85/dex-data-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/donnywin85/x402-gateway/issues"
+    "url": "https://github.com/donnywin85/dex-data-mcp/issues"
   }
 }
