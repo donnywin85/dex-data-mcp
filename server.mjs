@@ -13,10 +13,11 @@
 // and trying it. Fewer barriers, more usage.
 
 import { createInterface } from 'node:readline';
+import { fetchMaybePaid, payEnabled, budget } from './pay.mjs';
 
 const BASE = (process.env.X402_BASE || 'https://x402.donnyautomation.com').replace(/\/$/, '');
 const TIMEOUT_MS = Number(process.env.DEX_MCP_TIMEOUT_MS || 45000);
-const CHAINS = ['bsc', 'polygon', 'arbitrum', 'base', 'avalanche'];
+const CHAINS = ['bsc', 'polygon', 'arbitrum', 'base', 'avalanche', 'optimism'];
 
 const chainProp = {
   type: 'string', enum: CHAINS,
@@ -104,6 +105,13 @@ const TOOLS = [
     route: (a) => `/risk?pair=${encodeURIComponent(a.pair)}`,
   },
   {
+    name: 'get_spend_budget',
+    description: 'How much this session has spent on paid calls, and the caps in force. '
+      + 'Free, local, and makes the cost of continuing visible before it is incurred.',
+    inputSchema: { type: 'object', properties: {} },
+    local: () => budget(),
+  },
+  {
     name: 'list_chains',
     description: 'Supported chains, their indexed tokens and venues. Free, and the right first call '
       + 'if you are unsure which chain or ticker to use.',
@@ -116,19 +124,27 @@ const TOOLS = [
 // The paid routes sit behind an x402 paywall. Without a wallet an MCP client gets
 // a 402, so say exactly that and what it costs, rather than surfacing a bare HTTP
 // error the model has to guess at.
-function paywallMessage(tool, url) {
-  return [
-    `Daily free allowance used up for this caller, so this call needs payment.`,
-    ``,
+function paywallMessage(tool, url, reason) {
+  const b = budget();
+  const lines = [
+    'Daily free allowance used up for this caller, so this call needs payment.',
+    '',
     `  ${url}`,
-    ``,
-    `The allowance resets every 24h — see X-FreeTier-Remaining on any response,`,
-    `or ${BASE}/free-tier for the current limit.`,
-    ``,
-    `To keep going now: pay per call with an x402-capable client (USDC on Base),`,
-    `or set DEX_API_KEY if you have a prepaid key.`,
-    `Still free: the "list_chains" tool and ${BASE}/demo/* routes.`,
-  ].join('\n');
+    '',
+    'The allowance resets every 24h. Still free: the "list_chains" tool.',
+    '',
+  ];
+  if (payEnabled()) {
+    lines.push(`A wallet IS configured, but this call was not paid: ${reason || 'unknown'}.`,
+      `Budget so far: $${b.spentUsd} of $${b.maxSpendUsd} across ${b.calls} paid call(s).`,
+      'Raise DEX_MAX_SPEND_USD / DEX_MAX_PRICE_USD / DEX_MAX_CALLS to allow more.');
+  } else {
+    lines.push('To keep going, set DEX_WALLET_KEY to a funded wallet private key and',
+      'calls will pay themselves with x402 (USDC on Base, ~$0.01 each).',
+      'Spend is capped: DEX_MAX_SPEND_USD (default $1), DEX_MAX_PRICE_USD (default',
+      '$0.05/call) and DEX_MAX_CALLS (default 200). Use a burner wallet, not a main one.');
+  }
+  return lines.join('\n');
 }
 
 async function callTool(name, args) {
@@ -138,6 +154,7 @@ async function callTool(name, args) {
   if (a.chain && !CHAINS.includes(a.chain)) {
     throw new Error(`unknown chain "${a.chain}". Supported: ${CHAINS.join(', ')}`);
   }
+  if (tool.local) return { text: JSON.stringify(tool.local(), null, 2), isError: false };
   let route = tool.route(a);
   if (tool.fix) route = tool.fix(a, route);
   // chain is a path prefix, not a query param — that is how each chain gets its
@@ -147,13 +164,15 @@ async function callTool(name, args) {
 
   // Identify the client so free-tier usage is attributable to MCP rather than
   // lost among anonymous traffic - this is how we learn which channel works.
-  const headers = { accept: 'application/json', 'user-agent': 'dex-data-mcp/1.0 (+https://github.com/donnywin85/dex-data-mcp)' };
-  if (process.env.DEX_API_KEY) headers.authorization = `Bearer ${process.env.DEX_API_KEY}`;
+  const headers = { accept: 'application/json', 'user-agent': 'dex-data-mcp/1.1 (+https://github.com/donnywin85/dex-data-mcp)' };
 
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  // Pays automatically only if a wallet is configured AND every budget cap allows
+  // it; otherwise this is an ordinary fetch and the 402 is explained.
+  const { res, paid, reason, price } = await fetchMaybePaid(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
   const text = await res.text();
 
-  if (res.status === 402) return { text: paywallMessage(tool, url), isError: true };
+  if (res.status === 402) return { text: paywallMessage(tool, url, reason), isError: true };
+  void paid; void price;
   let body; try { body = JSON.parse(text); } catch { body = { raw: text.slice(0, 2000) }; }
   if (!res.ok) {
     // 404 here is usually a real answer ("no reliable price"), not a failure, so
@@ -172,7 +191,7 @@ async function handle(req) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dex-data', version: '1.0.0' },
+      serverInfo: { name: 'dex-data', version: '1.1.0' },
     };
   }
   if (method === 'tools/list') {
