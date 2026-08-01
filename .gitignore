@@ -1,2 +1,4 @@
 node_modules/
 *.log
+mcp-publisher.exe
+.mcpregistry_token
