@@ -37,13 +37,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use an npm new enough for Trusted Publishing
-        run: npm install -g npm@latest
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      # MUST come after setup-node: setup-node installs its own bundled npm and
+      # would overwrite an earlier upgrade. Trusted Publishing needs npm >= 11.5.
+      - name: Upgrade npm for Trusted Publishing (OIDC)
+        run: |
+          npm install -g npm@latest
+          npm --version
 
       # The server is dependency-free on purpose, so there is nothing to install.
       # Still prove it parses and speaks MCP before anything is published — a
