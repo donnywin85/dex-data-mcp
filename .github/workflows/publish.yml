@@ -37,9 +37,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Use an npm new enough for Trusted Publishing
+        run: npm install -g npm@latest
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
       # The server is dependency-free on purpose, so there is nothing to install.
@@ -78,8 +81,11 @@ jobs:
       # Provenance is a supply-chain attestation, not a requirement. It also
       # routes the publish through a stricter auth path that has been rejecting a
       # 2FA-bypass token with EOTP, so it is opt-in rather than blocking release.
+      # Trusted Publishing (OIDC): no NPM_TOKEN at all. npm verifies the workflow
+      # identity directly, which also restores provenance for free. Falls back to
+      # the token only if a trusted publisher has not been configured yet.
       - name: Publish
         if: ${{ !inputs.dry_run }}
-        run: npm publish --access public ${{ inputs.provenance && '--provenance' || '' }}
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
