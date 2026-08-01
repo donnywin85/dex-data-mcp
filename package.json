@@ -1,5 +1,5 @@
 {
-  "name": "@donnyautomation/dex-data-mcp",
+  "name": "dex-data-mcp",
   "version": "1.0.0",
   "description": "MCP server for live multi-chain DEX market data: token prices, liquidity depth, pool reserves, best execution venue, liquidity risk and pre-trade slippage across BNB Chain, Polygon, Arbitrum, Base and Avalanche. Any ERC-20 by ticker or contract address. Free tier, no wallet required.",
   "type": "module",
@@ -40,9 +40,10 @@
   "homepage": "https://x402.donnyautomation.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/donnywin85/dex-data-mcp.git"
+    "url": "git+https://github.com/donnywin85/x402-gateway.git",
+    "directory": "mcp"
   },
   "bugs": {
-    "url": "https://github.com/donnywin85/dex-data-mcp/issues"
+    "url": "https://github.com/donnywin85/x402-gateway/issues"
   }
 }

@@ -22,7 +22,7 @@ agent cannot cross on its own.
 **Claude Code**
 
 ```
-claude mcp add dex-data -- npx -y @donnyautomation/dex-data-mcp
+claude mcp add dex-data -- npx -y dex-data-mcp
 ```
 
 **Claude Desktop / Cursor** — add to `claude_desktop_config.json`:
@@ -32,7 +32,7 @@ claude mcp add dex-data -- npx -y @donnyautomation/dex-data-mcp
   "mcpServers": {
     "dex-data": {
       "command": "npx",
-      "args": ["-y", "@donnyautomation/dex-data-mcp"]
+      "args": ["-y", "dex-data-mcp"]
     }
   }
 }
