@@ -1,0 +1,102 @@
+# Publish server.json to the official MCP Registry.
+#
+# Separate from publish.yml on purpose: npm and the registry are different
+# systems with different failure modes, and a registry hiccup must never block
+# or half-complete an npm release. npm is what people install; the registry is
+# discovery metadata pointing AT the npm package, so it is published second.
+#
+# NAMESPACE: com.donnyautomation/dex-data — a DNS-verified namespace, which is
+# why this needs a key rather than OIDC. GitHub OIDC can only vouch for
+# io.github.<owner>/* namespaces; it cannot speak for a domain it does not
+# control. A duplicate io.github.donnywin85/dex-data-mcp entry exists in the
+# registry from an earlier attempt and should be retired, not fed.
+#
+# SETUP (once, phone-friendly):
+#   Settings -> Secrets and variables -> Actions -> New repository secret
+#   Name:  MCP_DNS_PRIVATE_KEY
+#   Value: the ed25519 private key (hex) whose public half is in the
+#          donnyautomation.com DNS TXT record. It is the same key that published
+#          1.1.1 — no DNS change is needed if you still have it.
+#
+# RELEASE ORDER: npm first (publish.yml), then this. The registry entry names an
+# npm version, so publishing metadata for a version that is not on npm yet points
+# agents at something they cannot install.
+
+name: registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      validate_only:
+        description: 'Validate server.json and stop (no publish, no auth)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  # Pinned: an unpinned publisher would change behaviour under us on a release
+  # we did not choose. Bump deliberately.
+  PUBLISHER_VERSION: '1.8.0'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # `secrets` is not an available context in a step-level `if:` — it silently
+    # reads as empty there. Hoisted so the guard below actually fires.
+    env:
+      HAS_KEY: ${{ secrets.MCP_DNS_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -sSL --fail -o pub.tgz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          tar xzf pub.tgz mcp-publisher
+          ./mcp-publisher --version
+
+      # Real gate, and it needs no credentials: the registry checks the document
+      # against its live schema. Catches a malformed or stale server.json before
+      # any auth is attempted.
+      - name: Validate server.json
+        run: ./mcp-publisher validate
+
+      # The registry entry points at an npm version. Publishing metadata for a
+      # version that is not on npm sends agents to something they cannot install,
+      # so refuse rather than advertise a package that does not exist yet.
+      - name: server.json version must already exist on npm
+        run: |
+          set -euo pipefail
+          WANT=$(node -p "require('./server.json').packages[0].version")
+          NAME=$(node -p "require('./server.json').packages[0].identifier")
+          echo "server.json advertises ${NAME}@${WANT}"
+          if ! curl -sSf "https://registry.npmjs.org/${NAME}/${WANT}" > /dev/null; then
+            echo "::error::${NAME}@${WANT} is not published on npm. Run the npm publish workflow first."
+            exit 1
+          fi
+          echo "confirmed present on npm"
+
+      - name: Stop here (validate only)
+        if: ${{ inputs.validate_only }}
+        run: echo "validate_only set — not publishing."
+
+      - name: Missing key
+        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' }}
+        run: |
+          echo "::error::MCP_DNS_PRIVATE_KEY is not set. Add it under Settings -> Secrets and variables -> Actions. See this file's header."
+          exit 1
+
+      - name: Publish to the registry
+        if: ${{ !inputs.validate_only && env.HAS_KEY == 'true' }}
+        env:
+          KEY: ${{ secrets.MCP_DNS_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          # The key is passed as an argument, so keep it out of the trace: `set
+          # -x` or a failed command echoing argv would put it in a public log.
+          set +x
+          ./mcp-publisher login dns --domain donnyautomation.com --private-key "$KEY"
+          ./mcp-publisher publish
+          echo "published $(node -p "require('./server.json').name") $(node -p "require('./server.json').version")"
