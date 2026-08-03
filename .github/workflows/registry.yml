@@ -10,22 +10,37 @@
 # OIDC. GitHub OIDC can only vouch for io.github.<owner>/* namespaces; it cannot
 # speak for a domain it does not control.
 #
-# ★ FALLBACK, added 2026-08-03. The DNS key could not be found anywhere on the
-# machine (searched 19,019 files), and without it the canonical entry is frozen.
-# It was frozen at 1.1.1 — a SIX-tool DEX-only server — while npm shipped 1.5.0
-# with twenty-two tools including the geocoding, search, holidays and LEI
-# products the demand data actually shows payers for. Every agent browsing the
-# registry was being shown the wrong product, indefinitely, waiting on a secret
-# nobody could produce.
+# ★ WHY THERE IS NO AUTOMATIC OIDC FALLBACK (learned the hard way, 2026-08-03).
 #
-# So when the key is absent this publishes to io.github.donnywin85/dex-data-mcp
-# instead, authenticated by GitHub OIDC, which needs no secret at all. That
-# namespace already holds stale 1.0.1 and 1.1.0 entries from earlier attempts;
-# refreshing one of them is strictly better than leaving all three stale. The
-# canonical DNS entry takes over automatically the moment the key is added — no
-# code change, just the secret.
+# The key could not be found on the machine (searched 19,019 files), so the
+# canonical entry sat frozen at 1.1.1 — a SIX-tool DEX-only server — while npm
+# shipped 1.5.0 with twenty-two tools including the geocoding, search, holidays
+# and LEI products the demand data actually shows payers for. Every agent
+# browsing the registry was being shown the wrong product.
 #
-# SETUP (once, phone-friendly) to restore the canonical namespace:
+# The obvious fix was to publish to io.github.donnywin85/dex-data-mcp instead,
+# which GitHub OIDC can authenticate with no secret at all. It was tried. The
+# registry refused it:
+#
+#   NPM package ownership validation failed.
+#   Expected mcpName 'io.github.donnywin85/dex-data-mcp',
+#   got 'com.donnyautomation/dex-data'
+#
+# The registry proves you own the npm package by reading `mcpName` out of the
+# PUBLISHED package.json. Ours says com.donnyautomation/dex-data. So switching
+# namespace is not a workflow change — it needs a new npm release carrying a
+# different mcpName, and from that release on the canonical entry can never be
+# updated again, because the package would no longer claim it.
+#
+# That is a ONE-WAY DOOR, and it is unnecessary: the canonical namespace does
+# not need the LOST key, only A key. DNS verification checks the public half in
+# a TXT record on a domain we control. Generate a fresh keypair, update the
+# record, add the private half as a secret, and the canonical entry is back.
+#
+# So the fallback stays behind an explicit opt-in input, never automatic.
+#
+# SETUP (once, phone-friendly) to restore the canonical namespace — a NEW
+# keypair is fine, the original is not required:
 #   Settings -> Secrets and variables -> Actions -> New repository secret
 #   Name:  MCP_DNS_PRIVATE_KEY
 #   Value: the ed25519 private key (hex) whose public half is in the
@@ -43,6 +58,14 @@ on:
     inputs:
       validate_only:
         description: 'Validate server.json and stop (no publish, no auth)'
+        type: boolean
+        default: false
+      # ONE-WAY DOOR. Publishing under the OIDC namespace also requires an npm
+      # release whose mcpName names it, and after that the canonical
+      # com.donnyautomation/dex-data entry can never be updated again. Only set
+      # this if abandoning that namespace is the intended outcome.
+      abandon_canonical_namespace:
+        description: 'PERMANENT: switch to io.github.donnywin85/* and give up com.donnyautomation/dex-data'
         type: boolean
         default: false
 
@@ -110,16 +133,37 @@ jobs:
           ./mcp-publisher publish
           echo "published $(node -p "require('./server.json').name") $(node -p "require('./server.json').version")"
 
-      # No key: publish the SAME metadata under the OIDC namespace rather than
-      # failing and leaving the registry advertising a six-tool server forever.
-      # server.json is rewritten in the runner only — the committed file keeps
-      # the canonical name, so this never quietly changes what we publish once
-      # the key exists.
-      - name: Publish to the OIDC fallback namespace
-        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' }}
+      # No key and no opt-in: stop, and say exactly what to do. Failing here is
+      # correct — the alternative permanently abandons the canonical namespace.
+      - name: Missing key
+        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' && !inputs.abandon_canonical_namespace }}
+        run: |
+          echo "::error::MCP_DNS_PRIVATE_KEY is not set, so com.donnyautomation/dex-data cannot be updated."
+          echo "The ORIGINAL key is not required — DNS verification only needs the public half of SOME"
+          echo "keypair in a TXT record on donnyautomation.com, and we control that domain. Generate a"
+          echo "fresh keypair, publish the public half, and add the private half under"
+          echo "Settings -> Secrets and variables -> Actions as MCP_DNS_PRIVATE_KEY."
+          echo ""
+          echo "Do NOT reach for abandon_canonical_namespace to get around this. It is permanent:"
+          echo "the registry reads mcpName out of the published npm package to prove ownership, so"
+          echo "switching namespace needs an npm release naming the new one, and from that release"
+          echo "onward com.donnyautomation/dex-data can never be updated again."
+          exit 1
+
+      # Explicitly requested namespace switch. This alone is NOT sufficient —
+      # package.json's mcpName must already name the OIDC namespace on a
+      # published npm version, or the registry rejects the publish. The error
+      # below spells that out rather than leaving a bare 400.
+      - name: Publish to the OIDC namespace (PERMANENT switch, opt-in)
+        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' && inputs.abandon_canonical_namespace }}
         run: |
           set -euo pipefail
-          echo "::warning::MCP_DNS_PRIVATE_KEY is not set — publishing to io.github.donnywin85/dex-data-mcp instead of the canonical com.donnyautomation/dex-data. Add the secret to restore the canonical namespace."
+          echo "::warning::Publishing under io.github.donnywin85/dex-data-mcp. com.donnyautomation/dex-data is being abandoned permanently."
+          MCPNAME=$(node -p "require('./package.json').mcpName || ''")
+          if [ "$MCPNAME" != "io.github.donnywin85/dex-data-mcp" ]; then
+            echo "::error::package.json mcpName is '${MCPNAME}'. The registry proves npm ownership by reading mcpName from the PUBLISHED package, so it must be 'io.github.donnywin85/dex-data-mcp' on a version that is already on npm. Change mcpName, publish to npm, then re-run this."
+            exit 1
+          fi
           node -e '
             const fs = require("fs");
             const j = JSON.parse(fs.readFileSync("server.json", "utf8"));
