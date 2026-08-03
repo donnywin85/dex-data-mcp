@@ -77,6 +77,19 @@ jobs:
             console.log(`OK: all four report ${pkg}`);
           '
 
+      # Does this server still expose everything the gateway sells? MCP is the
+      # channel with actual traction (~672 npm downloads/week against roughly
+      # zero organic paid API calls), so a product that ships on the gateway and
+      # never gets a tool is invisible where it matters. The two repos are
+      # separate, so until now no CI job could see both sides.
+      #
+      # Deliberately here and not in x402-gateway's CI: this needs the network,
+      # and that repo's CI gates its Railway deploys. A flaky network check there
+      # would block shipping the gateway for reasons unrelated to the gateway.
+      # The worst case here is a delayed npm publish.
+      - name: Gateway product coverage
+        run: node scripts/check-coverage.mjs
+
       - name: Smoke test the MCP protocol
         run: |
           node -e '
