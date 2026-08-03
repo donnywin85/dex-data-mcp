@@ -1,7 +1,7 @@
 {
   "name": "dex-data-mcp",
-  "version": "1.4.0",
-  "description": "16 MCP tools, no API key: multi-chain DEX market data (token prices, liquidity depth, pool reserves, best venue, pre-trade slippage, cross-venue arbitrage, gas costs in USD across 6 chains) plus general-purpose agent utilities — geocoding, reverse geocoding, weather, web search, article/PDF to Markdown, and secure randomness. Free tier, no wallet required.",
+  "version": "1.5.0",
+  "description": "DEX data, geocoding, weather, search, holidays, LEI, yield curve. 22 tools, free tier.",
   "type": "module",
   "bin": {
     "dex-data-mcp": "server.mjs"

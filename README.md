@@ -1,12 +1,15 @@
 # dex-data MCP server
 
-Sixteen tools, no API key and no wallet, in two groups:
+Twenty-two tools, no API key and no wallet, in three groups:
 
 - **Multi-chain DEX market data** — token prices, liquidity depth, pool reserves,
   best execution venue, liquidity risk, pre-trade slippage and gas costs across BNB Chain,
   Polygon, Arbitrum, Base, Avalanche and Optimism.
 - **General-purpose agent utilities** — geocoding, reverse geocoding, weather,
   web search, article/PDF to Markdown, and cryptographic randomness.
+- **Reference and research data** — search autocomplete, public holidays and
+  business days, RSS/Atom feeds, IP geolocation, GLEIF legal-entity lookup and
+  the US Treasury yield curve.
 
 ## Why this exists
 
@@ -78,15 +81,32 @@ randomness. These are the answers to that data.
 | `url_to_markdown` | a public article or PDF URL to clean Markdown |
 | `get_random` | CSPRNG integers or bytes, for agents that cannot generate their own |
 
+**Reference and research data**
+
+Chosen the same way, but from a corrected reading. The category totals in the
+original scan were double-counted — the biggest x402 sellers carry 10-16 of the
+16 category tags each, so every category reported nearly the whole market's
+revenue. Seller-level rows are clean, and every tool below is something a wallet
+took real USDC for during the sampled window.
+
+| tool | answers |
+|---|---|
+| `get_search_suggestions` | what people actually type about a topic — autocomplete, expanded into questions and comparisons |
+| `get_holidays` | public and bank holidays for 100+ countries, and whether a given date is a business day |
+| `read_feed` | any RSS, Atom or RDF feed as clean JSON, summaries in both HTML and plain text |
+| `geolocate_ip` | where an IP is, with the datacentre/VPN flag that says whether to believe it |
+| `lookup_lei` | a company's Legal Entity Identifier **by name**, with lapsed registrations flagged not hidden |
+| `get_treasury_yield_curve` | the US par yield curve plus 2s10s / 3m10y / 5s30s and the inversion flag |
+
 **Local**
 
 | tool | answers |
 |---|---|
 | `get_spend_budget` | what this session has spent on paid calls, and the caps in force |
 
-Two pairings worth knowing: `geocode` then `get_weather` turns a place name into
-a forecast, and `search` then `url_to_markdown` turns a question into readable
-source text.
+Pairings worth knowing: `geocode` then `get_weather` turns a place name into a
+forecast, `search` then `url_to_markdown` turns a question into readable source
+text, and `read_feed` then `url_to_markdown` turns a feed into full articles.
 
 ## Free tier
 

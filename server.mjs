@@ -209,6 +209,129 @@ const TOOLS = [
     route: (a) => `/weather?lat=${encodeURIComponent(a.lat)}&lon=${encodeURIComponent(a.lon)}`
       + (a.days != null ? `&days=${encodeURIComponent(a.days)}` : ''),
   },
+  // ---- second wave: chosen from seller-level x402 receipts ----------------
+  // The category totals the gateway's radar produced turned out to be
+  // double-counted — the biggest sellers carry 10-16 of the 16 category tags
+  // each, so every category reports nearly the whole market's revenue. Seller
+  // rows are clean, and these six are each sold today by a wallet that took
+  // real USDC, with a free keyless upstream behind them.
+  {
+    name: 'get_search_suggestions',
+    description:
+      'What people actually type into a search box for a topic — live search autocomplete, expanded '
+      + 'across question modifiers (how/what/why/is/can/does) and comparison modifiers (vs/or), then '
+      + 'split into suggestions, questions and comparisons. Rows where the engine dropped your term '
+      + 'and answered something else are filtered out and counted. A demand signal for content and '
+      + 'keyword research, not a ranking — search volume is not published upstream and is not invented.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Topic or search terms, max 200 characters.' },
+        depth: { type: 'string', enum: ['full', 'basic'], description: '"full" (default) expands across 15 modifiers; "basic" returns completions for the query alone.' },
+        country: { type: 'string', description: 'Two-letter market code, default "us".' },
+        lang: { type: 'string', description: 'Language code, default "en".' },
+      },
+      required: ['q'],
+    },
+    route: (a) => `/suggest?q=${encodeURIComponent(a.q)}`
+      + (a.depth ? `&depth=${encodeURIComponent(a.depth)}` : '')
+      + (a.country ? `&country=${encodeURIComponent(a.country)}` : '')
+      + (a.lang ? `&lang=${encodeURIComponent(a.lang)}` : ''),
+  },
+  {
+    name: 'get_holidays',
+    description:
+      'Public and bank holidays for 100+ countries, and the business-day question behind them. Pass a '
+      + 'date and it answers directly whether that date is a business day and what the next and '
+      + 'previous ones are, counting weekends and holidays and walking across year boundaries. Without '
+      + 'a date it returns the whole year, including which regions observe a non-national holiday. '
+      + 'Regional closures, half-days and market trading calendars are not covered.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        country: { type: 'string', description: 'ISO 3166-1 alpha-2 country code, e.g. US, GB, DE, JP.' },
+        date: { type: 'string', description: 'YYYY-MM-DD. Adds isBusinessDay plus next/previous business days.' },
+        year: { type: 'number', description: 'Calendar year 1975..2100. Default: current year. Ignored when date is given.' },
+      },
+      required: ['country'],
+    },
+    route: (a) => `/holidays?country=${encodeURIComponent(a.country)}`
+      + (a.date ? `&date=${encodeURIComponent(a.date)}` : '')
+      + (a.year != null ? `&year=${encodeURIComponent(a.year)}` : ''),
+  },
+  {
+    name: 'read_feed',
+    description:
+      'Read any public RSS, Atom or RDF feed as clean JSON: feed title, link and description, then '
+      + 'items with title, real destination link, author, categories and the published date both '
+      + 'verbatim and normalised to ISO 8601. Each summary is returned twice — the feed HTML as '
+      + 'published, and a plain-text rendering safe to put straight into a prompt. An unparseable date '
+      + 'is null, never an invented timestamp. Pair with url_to_markdown to read a linked article.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Public http(s) URL of an RSS 2.0, Atom or RDF feed.' },
+        limit: { type: 'number', description: 'Maximum items, 1..100. Default 20.' },
+      },
+      required: ['url'],
+    },
+    route: (a) => `/feed?url=${encodeURIComponent(a.url)}`
+      + (a.limit != null ? `&limit=${encodeURIComponent(a.limit)}` : ''),
+  },
+  {
+    name: 'geolocate_ip',
+    description:
+      'Locate a public IPv4 or IPv6 address: country, region, city, postcode, coordinates, timezone, '
+      + 'ASN, org and ISP. Datacentre/VPN/proxy/Tor detection is returned FIRST because it decides '
+      + 'whether the location means anything — and when the upstream does not supply that detection '
+      + 'the answer says unknown, never clean. An IP locates a network, not a person: the coordinates '
+      + 'are a registered-range centroid, so never present them as where someone is.',
+    inputSchema: {
+      type: 'object',
+      properties: { ip: { type: 'string', description: 'Public IPv4 or IPv6 address. Private and reserved ranges are refused.' } },
+      required: ['ip'],
+    },
+    route: (a) => `/ip?ip=${encodeURIComponent(a.ip)}`,
+  },
+  {
+    name: 'lookup_lei',
+    description:
+      'Look up a company in the GLEIF Legal Entity Identifier golden copy BY NAME, not just by '
+      + 'identifier — knowing the LEI already is the hard part. Returns the LEI, registered legal '
+      + 'name, previous names, legal form, jurisdiction, legal and headquarters addresses and the '
+      + 'registration record. Lapsed, retired and annulled entities come back flagged rather than '
+      + 'filtered out: a hidden record and no record are indistinguishable to the caller.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Legal entity name, max 200 chars. Include the suffix for precision, e.g. "Apple Inc.".' },
+        lei: { type: 'string', description: 'Exact 20-character LEI, for a single record instead of a name search.' },
+        limit: { type: 'number', description: 'Maximum name-search results, 1..50. Default 10.' },
+      },
+    },
+    route: (a) => (a.lei
+      ? `/lei?lei=${encodeURIComponent(a.lei)}`
+      : `/lei?q=${encodeURIComponent(a.q || '')}${a.limit != null ? `&limit=${encodeURIComponent(a.limit)}` : ''}`),
+  },
+  {
+    name: 'get_treasury_yield_curve',
+    description:
+      'The US Treasury par yield curve for any published business day — every constant-maturity rate '
+      + 'from 1 month to 30 years — plus the spreads and the inversion flag, because the real question '
+      + 'is whether the curve is inverted rather than what fourteen numbers are. 2s10s, 3m10y and '
+      + '5s30s are computed for you. A tenor Treasury did not publish that day is null, never zero. '
+      + 'Nominal CMT rates: not real yields and not zero-coupon spot rates.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'YYYY-MM-DD business day. Default: the latest published curve. A non-publication day returns the available range, not a nearest guess.' },
+      },
+    },
+    // A bare path reads as a catalogue crawler upstream and is routed to the
+    // paywall rather than the free tier, so the no-date case still sends a
+    // parameter. Same reason as get_random's bytes=32 default.
+    route: (a) => (a.date ? `/treasury?date=${encodeURIComponent(a.date)}` : '/treasury?latest=1'),
+  },
   {
     name: 'get_spend_budget',
     description: 'How much this session has spent on paid calls, and the caps in force. '
@@ -368,7 +491,7 @@ async function handle(req) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dex-data', version: '1.4.0' },
+      serverInfo: { name: 'dex-data', version: '1.5.0' },
     };
   }
   if (method === 'tools/list') {

@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.donnyautomation/dex-data",
-  "description": "Multi-chain DEX data plus agent utilities: geocoding, weather, search, Markdown. Free tier.",
+  "description": "DEX data, geocoding, weather, search, holidays, LEI, yield curve. 22 tools, free tier.",
   "repository": {
     "url": "https://github.com/donnywin85/dex-data-mcp",
     "source": "github"
   },
-  "version": "1.4.0",
+  "version": "1.5.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "dex-data-mcp",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "transport": {
         "type": "stdio"
       }
