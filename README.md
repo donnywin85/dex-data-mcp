@@ -1,8 +1,12 @@
 # dex-data MCP server
 
-Live multi-chain DEX market data as MCP tools: token prices, liquidity depth,
-pool reserves, best execution venue, liquidity risk and pre-trade slippage across
-BNB Chain, Polygon, Arbitrum, Base and Avalanche.
+Thirteen tools, no API key and no wallet, in two groups:
+
+- **Multi-chain DEX market data** — token prices, liquidity depth, pool reserves,
+  best execution venue, liquidity risk and pre-trade slippage across BNB Chain,
+  Polygon, Arbitrum, Base, Avalanche and Optimism.
+- **General-purpose agent utilities** — geocoding, reverse geocoding, weather,
+  web search, article/PDF to Markdown, and cryptographic randomness.
 
 ## Why this exists
 
@@ -43,6 +47,8 @@ allowance; after that the endpoints fall back to x402 micropayments.
 
 ## Tools
 
+**DEX market data**
+
 | tool | answers |
 |---|---|
 | `get_token_price` | USD price of any ERC-20, by ticker or contract address |
@@ -51,6 +57,33 @@ allowance; after that the endpoints fall back to x402 micropayments.
 | `get_slippage` | price impact for a specific trade size |
 | `get_liquidity_risk` | DEEP / MODERATE / SHALLOW / VERY_THIN depth class |
 | `list_chains` | supported chains and indexed tokens |
+
+**General-purpose agent utilities**
+
+Not a change of theme — these were chosen the same way everything else here was.
+Reading USDC receipts across 1,062 x402 seller wallets on Base ranked what
+actually gets paid for, and DEX data was not near the top of that list. Forward
+geocoding was (56 paying wallets), then weather, then article-to-Markdown, then
+randomness. These are the answers to that data.
+
+| tool | answers |
+|---|---|
+| `geocode` | address or place name to coordinates, worldwide (OpenStreetMap) |
+| `reverse_geocode` | coordinates to the nearest street address |
+| `get_weather` | current conditions plus up to a 7-day forecast for any coordinates |
+| `search` | free-text web search to ranked organic results, sponsored rows excluded |
+| `url_to_markdown` | a public article or PDF URL to clean Markdown |
+| `get_random` | CSPRNG integers or bytes, for agents that cannot generate their own |
+
+**Local**
+
+| tool | answers |
+|---|---|
+| `get_spend_budget` | what this session has spent on paid calls, and the caps in force |
+
+Two pairings worth knowing: `geocode` then `get_weather` turns a place name into
+a forecast, and `search` then `url_to_markdown` turns a question into readable
+source text.
 
 ## Free tier
 

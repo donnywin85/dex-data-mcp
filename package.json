@@ -1,7 +1,7 @@
 {
   "name": "dex-data-mcp",
-  "version": "1.2.1",
-  "description": "MCP server for live multi-chain DEX market data: token prices, liquidity depth, pool reserves, best execution venue, liquidity risk and pre-trade slippage across BNB Chain, Polygon, Arbitrum, Base and Avalanche. Any ERC-20 by ticker or contract address. Free tier, no wallet required.",
+  "version": "1.2.2",
+  "description": "13 MCP tools, no API key: multi-chain DEX market data (token prices, liquidity depth, best venue, pre-trade slippage across 6 chains) plus general-purpose agent utilities — geocoding, reverse geocoding, weather, web search, article/PDF to Markdown, and secure randomness. Free tier, no wallet required.",
   "type": "module",
   "bin": {
     "dex-data-mcp": "server.mjs"
@@ -34,7 +34,15 @@
     "polygon",
     "avalanche",
     "bnb-chain",
-    "x402"
+    "x402",
+    "geocoding",
+    "reverse-geocoding",
+    "weather",
+    "web-search",
+    "markdown",
+    "pdf",
+    "randomness",
+    "agent-tools"
   ],
   "author": "donnyautomation",
   "license": "MIT",

@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.donnyautomation/dex-data",
-  "description": "Multi-chain DEX prices, liquidity, routing and slippage. Free tier, no API key.",
+  "description": "Multi-chain DEX data plus agent utilities: geocoding, weather, search, Markdown. Free tier.",
   "repository": {
     "url": "https://github.com/donnywin85/dex-data-mcp",
     "source": "github"
   },
-  "version": "1.2.1",
+  "version": "1.2.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "dex-data-mcp",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "transport": {
         "type": "stdio"
       }
