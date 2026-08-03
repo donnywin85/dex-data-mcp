@@ -39,9 +39,6 @@ const CHAINS = ['bsc', 'polygon', 'arbitrum', 'base', 'avalanche', 'optimism'];
 const EXEMPT = {
   '/call': 'legacy generic proxy, superseded by the named product routes',
   '/v4hooks': 'one-off research product, not part of the general catalogue',
-  // ↓ NOT deliberate. Real gaps, listed so they are visible and countable.
-  '/reserves': 'GAP — no tool yet. Pool reserves across 6 chains.',
-  '/scan': 'GAP — no tool yet. Arbitrage scanner, 6 chains.',
 };
 
 function familyOf(p) {

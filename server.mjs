@@ -217,6 +217,42 @@ const TOOLS = [
     local: () => budget(),
   },
   {
+    name: 'get_pool_reserves',
+    description:
+      'Raw pool reserves for a pair on every indexed venue: the two token balances, the pool fee in '
+      + 'bps, the implied price from those reserves and the pool TVL, all read at one block height '
+      + 'which is returned with the answer. This is the underlying data the price, depth and slippage '
+      + 'tools are computed from — use it when you want to do your own maths rather than take ours.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pair: { type: 'string', description: 'Pair as SYM/SYM, e.g. WBNB/USDT. Either side may be a 0x address.' },
+        chain: chainProp,
+      },
+      required: ['pair'],
+    },
+    route: (a) => `/reserves?pair=${encodeURIComponent(a.pair)}`,
+  },
+  {
+    name: 'find_arbitrage',
+    description:
+      'Scan a chain for cross-venue arbitrage right now: pairs whose price differs enough between '
+      + 'DEXes to be worth trading, ranked by GROSS USD AT THE OPTIMAL TRADE SIZE — not by raw '
+      + 'spread, because a wide spread on a tiny pool is not an opportunity. Returns an empty list '
+      + 'when there is nothing, which is a real answer. Excludes gas, MEV and execution risk.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        minSpreadBps: { type: 'number', description: 'Minimum cross-venue spread in basis points. Default 20.' },
+        chain: chainProp,
+      },
+    },
+    // Always sends minSpreadBps: a parameterless request is routed to the paywall
+    // as a catalogue crawler and can never reach the free tier — the defect that
+    // left /gas with 3,456 challenges and one free call.
+    route: (a) => `/scan?minSpreadBps=${encodeURIComponent(a.minSpreadBps ?? 20)}`,
+  },
+  {
     name: 'get_gas',
     description:
       'Live gas prices across BNB Chain, Polygon, Arbitrum, Base, Avalanche and Optimism, priced in '
@@ -332,7 +368,7 @@ async function handle(req) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dex-data', version: '1.3.0' },
+      serverInfo: { name: 'dex-data', version: '1.4.0' },
     };
   }
   if (method === 'tools/list') {

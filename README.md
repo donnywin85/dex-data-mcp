@@ -1,6 +1,6 @@
 # dex-data MCP server
 
-Fourteen tools, no API key and no wallet, in two groups:
+Sixteen tools, no API key and no wallet, in two groups:
 
 - **Multi-chain DEX market data** — token prices, liquidity depth, pool reserves,
   best execution venue, liquidity risk, pre-trade slippage and gas costs across BNB Chain,
@@ -57,6 +57,8 @@ allowance; after that the endpoints fall back to x402 micropayments.
 | `get_slippage` | price impact for a specific trade size |
 | `get_liquidity_risk` | DEEP / MODERATE / SHALLOW / VERY_THIN depth class |
 | `get_gas` | gas cost in USD per chain, ranked cheapest-first (gwei is not comparable across chains) |
+| `get_pool_reserves` | raw reserves, fee and TVL per venue at one block — the data the others compute from |
+| `find_arbitrage` | cross-venue arbitrage now, ranked by gross USD at the optimal size, not raw spread |
 | `list_chains` | supported chains and indexed tokens |
 
 **General-purpose agent utilities**
