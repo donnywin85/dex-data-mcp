@@ -40,7 +40,6 @@ const EXEMPT = {
   '/call': 'legacy generic proxy, superseded by the named product routes',
   '/v4hooks': 'one-off research product, not part of the general catalogue',
   // ↓ NOT deliberate. Real gaps, listed so they are visible and countable.
-  '/gas': 'GAP — no tool yet. Demand data ranked this 21 paying wallets, second only to geocoding.',
   '/reserves': 'GAP — no tool yet. Pool reserves across 6 chains.',
   '/scan': 'GAP — no tool yet. Arbitrage scanner, 6 chains.',
 };

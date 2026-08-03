@@ -217,6 +217,35 @@ const TOOLS = [
     local: () => budget(),
   },
   {
+    name: 'get_gas',
+    description:
+      'Live gas prices across BNB Chain, Polygon, Arbitrum, Base, Avalanche and Optimism, priced in '
+      + 'USD and ranked cheapest-first. Returns gas price in gwei, base fee, and what a transfer, an '
+      + 'ERC-20 transfer and a swap actually cost in dollars on each chain. Gwei is NOT comparable '
+      + 'across chains because the gas token differs in price, so USD is the only ranking that says '
+      + 'where a transaction really costs least. For bridging, routing and execution timing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        chain: {
+          type: 'string',
+          enum: ['all', ...CHAINS],
+          description: 'One chain, or "all" for every chain ranked cheapest-first. Defaults to all.',
+        },
+      },
+    },
+    // Always sends chain=, never a bare /gas. The gateway treats a PARAMETERLESS
+    // request as a catalogue crawler and routes it straight to the paywall, so a
+    // bare call can never reach the free tier — /gas recorded 3,456 challenges
+    // and exactly ONE free call before anyone noticed. A tool that cannot be
+    // tried for free cannot convert.
+    route: (a) => `/gas?chain=${encodeURIComponent(a.chain || 'all')}`,
+    // /gas has no per-chain paths — it takes ?chain= and accepts `all`. Without
+    // this the shared handler would rewrite chain into a path prefix and ask for
+    // /base/gas, which 404s.
+    chainInQuery: true,
+  },
+  {
     name: 'list_chains',
     description: 'Supported chains, their indexed tokens and venues. Free, and the right first call '
       + 'if you are unsure which chain or ticker to use.',
@@ -256,15 +285,22 @@ async function callTool(name, args) {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) throw new Error(`unknown tool: ${name}`);
   const a = args || {};
-  if (a.chain && !CHAINS.includes(a.chain)) {
-    throw new Error(`unknown chain "${a.chain}". Supported: ${CHAINS.join(', ')}`);
+  // Most tools express chain as a PATH PREFIX (/base/price) because that is how
+  // each chain gets its own resource URL upstream. /gas is the exception: it has
+  // no per-chain paths, it takes ?chain= and accepts `all`. A tool sets
+  // chainInQuery to opt out of both the prefixing and the CHAINS-only check.
+  const chainValues = tool.chainInQuery ? [...CHAINS, 'all'] : CHAINS;
+  if (a.chain && !chainValues.includes(a.chain)) {
+    throw new Error(`unknown chain "${a.chain}". Supported: ${chainValues.join(', ')}`);
   }
   if (tool.local) return { text: JSON.stringify(tool.local(), null, 2), isError: false };
   let route = tool.route(a);
   if (tool.fix) route = tool.fix(a, route);
   // chain is a path prefix, not a query param — that is how each chain gets its
-  // own resource URL upstream.
-  const prefix = a.chain && a.chain !== 'bsc' ? `/${a.chain}` : '';
+  // own resource URL upstream. Unless the tool puts it in the query (see
+  // chainInQuery): prefixing /gas produced `/base/gas`, which does not exist,
+  // and every chain except the default 404'd.
+  const prefix = !tool.chainInQuery && a.chain && a.chain !== 'bsc' ? `/${a.chain}` : '';
   const url = `${BASE}${prefix}${route}`;
 
   // Identify the client so free-tier usage is attributable to MCP rather than
@@ -296,7 +332,7 @@ async function handle(req) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dex-data', version: '1.2.2' },
+      serverInfo: { name: 'dex-data', version: '1.3.0' },
     };
   }
   if (method === 'tools/list') {

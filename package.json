@@ -1,7 +1,7 @@
 {
   "name": "dex-data-mcp",
-  "version": "1.2.2",
-  "description": "13 MCP tools, no API key: multi-chain DEX market data (token prices, liquidity depth, best venue, pre-trade slippage across 6 chains) plus general-purpose agent utilities — geocoding, reverse geocoding, weather, web search, article/PDF to Markdown, and secure randomness. Free tier, no wallet required.",
+  "version": "1.3.0",
+  "description": "14 MCP tools, no API key: multi-chain DEX market data (token prices, liquidity depth, best venue, pre-trade slippage, gas costs in USD across 6 chains) plus general-purpose agent utilities — geocoding, reverse geocoding, weather, web search, article/PDF to Markdown, and secure randomness. Free tier, no wallet required.",
   "type": "module",
   "bin": {
     "dex-data-mcp": "server.mjs"
@@ -42,7 +42,10 @@
     "markdown",
     "pdf",
     "randomness",
-    "agent-tools"
+    "agent-tools",
+    "gas",
+    "gas-price",
+    "gwei"
   ],
   "author": "donnyautomation",
   "license": "MIT",
