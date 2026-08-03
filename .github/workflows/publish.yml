@@ -55,6 +55,28 @@ jobs:
       - name: Syntax check
         run: node --check server.mjs
 
+      # The version lives in FOUR places that drift independently, and the MCP
+      # registry validates only that package.json and server.json agree.
+      # serverInfo was found two versions stale (1.1.0 against a 1.2.0 package)
+      # and it is what a client reads at handshake — so every caller was being
+      # told the wrong version. Catch it here, not after an immutable publish.
+      - name: Versions agree across all four fields
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+            const srv = JSON.parse(fs.readFileSync("server.json", "utf8"));
+            const src = fs.readFileSync("server.mjs", "utf8");
+            const m = src.match(/serverInfo:\s*\{[^}]*version:\s*"([^"]+)"|serverInfo:\s*\{[^}]*version:\s*\x27([^\x27]+)\x27/);
+            const info = m && (m[1] || m[2]);
+            const seen = { "package.json": pkg, "server.json": srv.version, "server.json packages[0]": srv.packages[0].version, "serverInfo": info };
+            console.log(seen);
+            if (!info) { console.error("could not find serverInfo version in server.mjs"); process.exit(1); }
+            const bad = Object.entries(seen).filter(([, v]) => v !== pkg);
+            if (bad.length) { console.error("VERSION MISMATCH:", bad); process.exit(1); }
+            console.log(`OK: all four report ${pkg}`);
+          '
+
       - name: Smoke test the MCP protocol
         run: |
           node -e '
@@ -72,9 +94,17 @@ jobs:
               p.kill();
               const init = got.find(r => r.id === 1), list = got.find(r => r.id === 2);
               if (!init?.result?.serverInfo?.name) { console.error("initialize failed"); process.exit(1); }
-              const n = list?.result?.tools?.length || 0;
-              if (n < 6) { console.error(`expected 6 tools, got ${n}`); process.exit(1); }
-              console.log(`OK: ${init.result.serverInfo.name}, ${n} tools`);
+              const tools = list?.result?.tools || [];
+              // A FLOOR, not an exact count — raise it when tools are added, so a
+              // regression that silently drops tools still fails the build. It sat
+              // at 6 while the package shipped 13: a floor that far below reality
+              // cannot catch losing half the catalogue.
+              const FLOOR = 13;
+              if (tools.length < FLOOR) {
+                console.error(`expected at least ${FLOOR} tools, got ${tools.length}: ${tools.map(t => t.name).join(", ")}`);
+                process.exit(1);
+              }
+              console.log(`OK: ${init.result.serverInfo.name} v${init.result.serverInfo.version}, ${tools.length} tools`);
             }, 4000);
           '
 

@@ -105,6 +105,111 @@ const TOOLS = [
     route: (a) => `/risk?pair=${encodeURIComponent(a.pair)}`,
   },
   {
+    name: 'geocode',
+    description:
+      'Convert a street address, city or place name to latitude/longitude coordinates — worldwide, '
+      + 'via OpenStreetMap. Returns coordinates, display name, structured address parts and a '
+      + 'confidence score. No match returns a clear 404, never a guessed coordinate.',
+    inputSchema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: 'Address or place name, e.g. "Eiffel Tower, Paris".' } },
+      required: ['query'],
+    },
+    route: (a) => `/geocode?q=${encodeURIComponent(a.query)}`,
+  },
+  {
+    name: 'reverse_geocode',
+    description:
+      'Convert latitude/longitude coordinates to the nearest street address and place name — '
+      + 'worldwide, via OpenStreetMap. Coordinates in the ocean or unmapped return 404, never a '
+      + 'fabricated address.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        lat: { type: 'number', description: 'Latitude, -90..90.' },
+        lon: { type: 'number', description: 'Longitude, -180..180.' },
+      },
+      required: ['lat', 'lon'],
+    },
+    route: (a) => `/reverse-geocode?lat=${encodeURIComponent(a.lat)}&lon=${encodeURIComponent(a.lon)}`,
+  },
+  {
+    name: 'get_random',
+    description:
+      'Cryptographically secure randomness for agents that are deterministic or sandboxed and cannot '
+      + 'generate their own: uniform integers in [min, max] (rejection-sampled, no modulo bias) or raw '
+      + 'random bytes as hex and base64. For nonces, IDs, sampling and shuffling.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        bytes: { type: 'number', description: 'Random bytes to return, 1..1024. Default 32 when no integer range is given.' },
+        min: { type: 'number', description: 'With max: return uniform integers in [min, max] inclusive.' },
+        max: { type: 'number', description: 'Upper bound (inclusive) for integer mode.' },
+        count: { type: 'number', description: 'How many integers, 1..1000. Integer mode only.' },
+      },
+    },
+    // Always send at least one parameter: a bare path reads as a catalogue
+    // crawler to the gateway and is routed to the paywall instead of free tier.
+    route: (a) => {
+      const q = ['bytes', 'min', 'max', 'count']
+        .filter((k) => a[k] != null)
+        .map((k) => `${k}=${encodeURIComponent(a[k])}`);
+      return `/random?${q.length ? q.join('&') : 'bytes=32'}`;
+    },
+  },
+  {
+    name: 'url_to_markdown',
+    description:
+      'Fetch a public article or PDF URL and return clean Markdown plus title, byline, site name and '
+      + 'word count. HTML is extracted with Firefox reader-mode rules; PDFs return their text layer '
+      + 'with page count. Image-only PDFs and client-rendered app shells return typed errors '
+      + '(no_text_layer, not_extractable) instead of empty output passed off as the article.',
+    inputSchema: {
+      type: 'object',
+      properties: { url: { type: 'string', description: 'Public http(s) URL of an article or PDF.' } },
+      required: ['url'],
+    },
+    route: (a) => `/markdown?url=${encodeURIComponent(a.url)}`,
+  },
+  {
+    name: 'search',
+    description:
+      'Web search — a free-text query returns ranked organic results, each with title, real '
+      + 'destination URL, display URL and snippet. Sponsored rows are excluded. Up to 25 results; '
+      + 'count is a maximum, not a guarantee, because a row whose destination cannot be resolved is '
+      + 'dropped rather than guessed at. Results are not fetched or verified — pair with '
+      + 'url_to_markdown to read any result.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Search terms, max 500 characters.' },
+        count: { type: 'number', description: 'Maximum results, 1..25. Default 10.' },
+      },
+      required: ['q'],
+    },
+    route: (a) => `/search?q=${encodeURIComponent(a.q)}`
+      + (a.count != null ? `&count=${encodeURIComponent(a.count)}` : ''),
+  },
+  {
+    name: 'get_weather',
+    description:
+      'Current weather and up to a 7-day forecast for any coordinates worldwide: temperature, '
+      + 'feels-like, humidity, precipitation, wind speed/gusts/direction now, plus daily highs, lows '
+      + 'and precipitation probability. Model forecast, not a station reading — the response says so. '
+      + 'Use the geocode tool first if you have a place name rather than coordinates.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        lat: { type: 'number', description: 'Latitude, -90..90.' },
+        lon: { type: 'number', description: 'Longitude, -180..180.' },
+        days: { type: 'number', description: 'Forecast days, 1..7. Default 3.' },
+      },
+      required: ['lat', 'lon'],
+    },
+    route: (a) => `/weather?lat=${encodeURIComponent(a.lat)}&lon=${encodeURIComponent(a.lon)}`
+      + (a.days != null ? `&days=${encodeURIComponent(a.days)}` : ''),
+  },
+  {
     name: 'get_spend_budget',
     description: 'How much this session has spent on paid calls, and the caps in force. '
       + 'Free, local, and makes the cost of continuing visible before it is incurred.',
@@ -191,7 +296,7 @@ async function handle(req) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dex-data', version: '1.1.0' },
+      serverInfo: { name: 'dex-data', version: '1.2.1' },
     };
   }
   if (method === 'tools/list') {

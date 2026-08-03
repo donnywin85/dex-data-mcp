@@ -1,6 +1,6 @@
 {
   "name": "dex-data-mcp",
-  "version": "1.1.1",
+  "version": "1.2.1",
   "description": "MCP server for live multi-chain DEX market data: token prices, liquidity depth, pool reserves, best execution venue, liquidity risk and pre-trade slippage across BNB Chain, Polygon, Arbitrum, Base and Avalanche. Any ERC-20 by ticker or contract address. Free tier, no wallet required.",
   "type": "module",
   "bin": {
