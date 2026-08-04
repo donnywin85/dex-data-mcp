@@ -81,12 +81,24 @@ const TOOLS = [
       type: 'object',
       properties: {
         pair: { type: 'string', description: 'Pair as SYM/SYM.' },
-        amountUsd: { type: 'number', description: 'Trade size in USD.' },
-        amountIn: { type: 'number', description: 'Alternatively, size in units of the first token.' },
+        amountUsd: { type: 'number', description: 'Trade size in USD, e.g. 10000. Required unless amountIn is given instead — slippage is meaningless without a size.' },
+        amountIn: { type: 'number', description: 'Alternatively, size in units of the first token. Supplying either this or amountUsd is enough.' },
         chain: chainProp,
       },
       required: ['pair'],
     },
+    // ★ A SIZE IS NOT OPTIONAL FOR A SLIPPAGE QUOTE.
+    //
+    //   required: ['pair'] alone let a model call get_slippage({pair}) — which
+    //   is exactly what the schema invites — and the route built
+    //   /slippage?pair=… with no size at all. The gateway answers that 400
+    //   missing_amount, so the call spent a free-tier request, or real USDC,
+    //   to buy an error. The identical omission existed in the gateway's own
+    //   OpenAPI, where the trade size was mentioned only in prose.
+    //
+    //   required[] is an AND and cannot say "one of these two", so the
+    //   constraint lives here instead.
+    requireOneOf: ['amountUsd', 'amountIn'],
     route: (a) => `/slippage?pair=${encodeURIComponent(a.pair)}`
       + (a.amountUsd != null ? `&amountUsd=${encodeURIComponent(a.amountUsd)}` : '')
       + (a.amountIn != null ? `&amountIn=${encodeURIComponent(a.amountIn)}` : ''),

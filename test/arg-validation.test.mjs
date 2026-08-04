@@ -85,6 +85,16 @@ check('lookup_lei with an empty q is blocked',
 check('lookup_lei WITH a name passes validation',
   !BLOCKED.test(await callText('lookup_lei', { q: 'Apple' })));
 
+// A slippage quote without a trade size is not a cheaper answer, it is a paid
+// 400 — the gateway rejects it with missing_amount. required:['pair'] alone
+// actively invited that call.
+check('get_slippage without a trade size is blocked',
+  BLOCKED.test(await callText('get_slippage', { pair: 'WBNB/USDT' })));
+check('get_slippage with amountUsd passes validation',
+  !BLOCKED.test(await callText('get_slippage', { pair: 'WBNB/USDT', amountUsd: 10000 })));
+check('get_slippage with amountIn passes validation',
+  !BLOCKED.test(await callText('get_slippage', { pair: 'WBNB/USDT', amountIn: 5 })));
+
 // Tools whose arguments are genuinely optional must not be caught by any of the
 // above — a false positive here would break working calls.
 for (const [name, args] of [['get_random', {}], ['find_arbitrage', {}], ['get_gas', {}], ['get_treasury_yield_curve', {}]]) {
