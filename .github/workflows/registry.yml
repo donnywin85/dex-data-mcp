@@ -116,12 +116,38 @@ jobs:
           fi
           echo "confirmed present on npm"
 
+      # ★ ALREADY-PUBLISHED IS NOT A FAILURE.
+      #
+      #   The registry refuses a duplicate version with a 400, so re-running
+      #   this after a release fails with a red X that means "nothing to do".
+      #   A build that goes red for a non-problem teaches people to ignore red
+      #   builds, which is expensive the day it means something.
+      #
+      #   Checked against the registry itself rather than guessed at: if this
+      #   exact name+version is already there, the publish is skipped and the
+      #   run is green.
+      - name: Already published?
+        id: already
+        run: |
+          set -euo pipefail
+          NAME=$(node -p "require('./server.json').name")
+          VER=$(node -p "require('./server.json').version")
+          FOUND=$(curl -sS "https://registry.modelcontextprotocol.io/v0/servers?search=$(node -p "encodeURIComponent(process.argv[1])" "$NAME")" \
+            | node -e '
+              let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
+                const j=JSON.parse(s), rows=j.servers||j.data||[];
+                const hit=rows.some(r=>{const m=r.server||r; return m.name===process.argv[1] && String(m.version)===process.argv[2];});
+                console.log(hit?"yes":"no");
+              });' "$NAME" "$VER")
+          echo "  ${NAME}@${VER} already in registry: ${FOUND}"
+          echo "found=${FOUND}" >> "$GITHUB_OUTPUT"
+
       - name: Stop here (validate only)
         if: ${{ inputs.validate_only }}
         run: echo "validate_only set — not publishing."
 
       - name: Publish to the canonical DNS namespace
-        if: ${{ !inputs.validate_only && env.HAS_KEY == 'true' }}
+        if: ${{ !inputs.validate_only && env.HAS_KEY == 'true' && steps.already.outputs.found == 'no' }}
         env:
           KEY: ${{ secrets.MCP_DNS_PRIVATE_KEY }}
         run: |
@@ -136,7 +162,7 @@ jobs:
       # No key and no opt-in: stop, and say exactly what to do. Failing here is
       # correct — the alternative permanently abandons the canonical namespace.
       - name: Missing key
-        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' && !inputs.abandon_canonical_namespace }}
+        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' && !inputs.abandon_canonical_namespace && steps.already.outputs.found == 'no' }}
         run: |
           echo "::error::MCP_DNS_PRIVATE_KEY is not set, so com.donnyautomation/dex-data cannot be updated."
           echo "The ORIGINAL key is not required — DNS verification only needs the public half of SOME"
@@ -155,7 +181,7 @@ jobs:
       # published npm version, or the registry rejects the publish. The error
       # below spells that out rather than leaving a bare 400.
       - name: Publish to the OIDC namespace (PERMANENT switch, opt-in)
-        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' && inputs.abandon_canonical_namespace }}
+        if: ${{ !inputs.validate_only && env.HAS_KEY != 'true' && inputs.abandon_canonical_namespace && steps.already.outputs.found == 'no' }}
         run: |
           set -euo pipefail
           echo "::warning::Publishing under io.github.donnywin85/dex-data-mcp. com.donnyautomation/dex-data is being abandoned permanently."
@@ -174,3 +200,7 @@ jobs:
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
           echo "published $(node -p "require('./server.json').name") $(node -p "require('./server.json').version")"
+
+      - name: Nothing to do
+        if: ${{ !inputs.validate_only && steps.already.outputs.found == 'yes' }}
+        run: echo "This name+version is already in the registry — skipped, not failed."
