@@ -1,0 +1,132 @@
+# retire-registry-entry.yml — take a stale entry out of MCP discovery.
+#
+# WHY THIS EXISTS. Two entries for this package sit in the official registry
+# under io.github.donnywin85/dex-data-mcp, from early attempts before the
+# canonical com.donnyautomation/dex-data namespace was set up. One of them is
+# still flagged isLatest, and every one of them reads:
+#
+#     "Multi-chain DEX prices, liquidity, routing and slippage. Free tier."
+#
+# That describes SIX of the twenty-two tools the package actually ships, and
+# none of the ones the demand data shows payers for. An agent that finds that
+# door instead of the canonical one is shown the wrong product entirely.
+#
+# ★ WHY A WORKFLOW RATHER THAN A LOCAL COMMAND.
+#
+#   Acting on io.github.<owner>/* needs GitHub-backed auth. Interactively that
+#   is a device-code flow, which needs a human at a browser. GitHub Actions OIDC
+#   proves the same ownership with no human and no stored secret — it is the one
+#   auth method that can vouch for this namespace unattended. The canonical
+#   com.donnyautomation entry uses DNS auth instead and is untouched by this.
+#
+# ★ THIS DOES NOT AFFECT NPM. The registry holds discovery METADATA pointing at
+#   the npm package. `npx dex-data-mcp` keeps working exactly as before; only
+#   the duplicate listing stops being advertised.
+#
+# Reversible: `--status active` restores a version, so a wrong call here is
+# recoverable rather than permanent.
+
+name: retire-registry-entry
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_name:
+        description: 'Registry entry to retire (must be in the io.github.donnywin85/* namespace)'
+        type: string
+        default: 'io.github.donnywin85/dex-data-mcp'
+      status:
+        description: 'deprecated = still listed but flagged; deleted = removed from discovery'
+        type: choice
+        options: [deprecated, deleted]
+        default: deleted
+      confirm:
+        description: 'Tick to actually apply. Unticked = dry run that only shows what would change.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write        # GitHub OIDC — the only auth that can vouch for io.github.*
+
+env:
+  PUBLISHER_VERSION: '1.8.0'
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install mcp-publisher
+        run: |
+          curl -sSL --fail -o pub.tgz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          tar xzf pub.tgz mcp-publisher
+          ./mcp-publisher --version
+
+      # ★ OIDC can only speak for io.github.<owner>/*. Refusing anything else
+      #   here turns a confusing "namespace not authorized" from the registry
+      #   into a clear message, and makes it impossible to point this at the
+      #   canonical DNS-authenticated entry by mistake.
+      - name: Refuse anything outside the OIDC namespace
+        run: |
+          set -euo pipefail
+          NAME='${{ inputs.server_name }}'
+          case "$NAME" in
+            io.github.donnywin85/*) echo "target: $NAME" ;;
+            *) echo "::error::'$NAME' is not in io.github.donnywin85/*. GitHub OIDC cannot vouch for it, and the canonical com.donnyautomation/dex-data entry must never be retired by this workflow."; exit 1 ;;
+          esac
+
+      - name: Show current registry state
+        run: |
+          set -euo pipefail
+          curl -sS "https://registry.modelcontextprotocol.io/v0/servers?search=dex-data" \
+            | node -e '
+              let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
+                const j=JSON.parse(s); const rows=j.servers||j.data||[];
+                console.log("BEFORE:");
+                for (const r of rows) {
+                  const m=r.server||r, off=(r._meta||m._meta||{})["io.modelcontextprotocol.registry/official"]||{};
+                  console.log(`  ${m.name} v${m.version} | isLatest=${off.isLatest} | status=${off.status}`);
+                }
+              });'
+
+      - name: Dry run (no changes)
+        if: ${{ !inputs.confirm }}
+        run: |
+          echo "confirm was not ticked — nothing was changed."
+          echo "Would set status='${{ inputs.status }}' on ALL versions of '${{ inputs.server_name }}'."
+
+      - name: Apply
+        if: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher status \
+            --status '${{ inputs.status }}' \
+            --all-versions \
+            --message 'Duplicate listing. The maintained entry is com.donnyautomation/dex-data, which is DNS-verified and current; this one predates it and advertises an outdated six-tool description. The npm package dex-data-mcp is unaffected.' \
+            '${{ inputs.server_name }}'
+
+      - name: Verify it actually took
+        if: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          sleep 5
+          curl -sS "https://registry.modelcontextprotocol.io/v0/servers?search=dex-data" \
+            | node -e '
+              let s=""; process.stdin.on("data",d=>s+=d).on("end",()=>{
+                const j=JSON.parse(s); const rows=j.servers||j.data||[];
+                console.log("AFTER:");
+                let canonicalLatest=null, staleActive=0;
+                for (const r of rows) {
+                  const m=r.server||r, off=(r._meta||m._meta||{})["io.modelcontextprotocol.registry/official"]||{};
+                  console.log(`  ${m.name} v${m.version} | isLatest=${off.isLatest} | status=${off.status}`);
+                  if (m.name.startsWith("com.donnyautomation/") && off.isLatest) canonicalLatest = m.version;
+                  if (m.name.startsWith("io.github.donnywin85/") && off.status === "active") staleActive++;
+                }
+                // The point of the exercise: the canonical entry is what agents
+                // resolve, and nothing is still advertising the old description.
+                if (!canonicalLatest) { console.error("::error::canonical com.donnyautomation entry is no longer flagged isLatest"); process.exit(1); }
+                if (staleActive)      { console.error(`::error::${staleActive} io.github version(s) still active`); process.exit(1); }
+                console.log(`\nOK: agents resolve com.donnyautomation/dex-data v${canonicalLatest}; no stale duplicate is active.`);
+              });'
