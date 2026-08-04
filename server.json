@@ -6,12 +6,12 @@
     "url": "https://github.com/donnywin85/dex-data-mcp",
     "source": "github"
   },
-  "version": "1.5.0",
+  "version": "1.5.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "dex-data-mcp",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "transport": {
         "type": "stdio"
       }
