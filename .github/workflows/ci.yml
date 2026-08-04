@@ -47,5 +47,29 @@ jobs:
             echo "::error::package.json mcpName is '$NAME', expected com.donnyautomation/dex-data"; exit 1; }
           echo "mcpName: $NAME"
 
+      # ★ The version lives in FOUR places and they drift silently.
+      #
+      #   Bumping to 1.5.1 updated package.json and both server.json fields but
+      #   not serverInfo in server.mjs, so the server would have introduced
+      #   itself over the MCP protocol as 1.5.0 while npm served 1.5.1 — the one
+      #   version a CLIENT actually observes, reporting the release that has the
+      #   bug rather than the one that fixes it. publish.yml catches this, but
+      #   only at the moment of release; catching it here means a mismatch never
+      #   reaches a release attempt.
+      - name: all four version sites agree
+        run: |
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+            const sj = JSON.parse(fs.readFileSync("server.json", "utf8"));
+            const src = fs.readFileSync("server.mjs", "utf8");
+            const info = (src.match(/serverInfo:\s*\{[^}]*version:\s*.([0-9.]+)./) || [])[1];
+            if (!info) { console.error("could not find serverInfo version in server.mjs"); process.exit(1); }
+            const seen = { "package.json": pkg, "server.json": sj.version, "server.json packages[0]": sj.packages?.[0]?.version, serverInfo: info };
+            const bad = Object.entries(seen).filter(([, v]) => v !== pkg);
+            if (bad.length) { console.error("VERSION MISMATCH:", seen); process.exit(1); }
+            console.log(`OK: all four report ${pkg}`);
+          '
+
       - name: argument validation over real stdio JSON-RPC (no network)
         run: node test/arg-validation.test.mjs

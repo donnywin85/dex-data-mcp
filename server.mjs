@@ -551,7 +551,7 @@ async function handle(req) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dex-data', version: '1.5.0' },
+      serverInfo: { name: 'dex-data', version: '1.5.1' },
     };
   }
   if (method === 'tools/list') {
