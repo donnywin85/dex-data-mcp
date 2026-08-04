@@ -96,12 +96,24 @@ jobs:
           echo "confirm was not ticked — nothing was changed."
           echo "Would set status='${{ inputs.status }}' on ALL versions of '${{ inputs.server_name }}'."
 
+      # ★ `status` PROMPTS. It prints the exact versions it is about to change
+      #   and waits on "Continue? [y/N]". There is no --yes flag. In CI there is
+      #   no stdin, so the first run of this step died with "failed to read
+      #   response: EOF" — safely, having changed nothing, which is the right
+      #   way for an unattended destructive command to fail.
+      #
+      #   `printf 'y\n' |` rather than `yes |`: under `set -o pipefail`, `yes`
+      #   is killed by SIGPIPE when the consumer exits and that 141 would fail
+      #   the step even on success.
+      #
+      #   The prompt's own listing still reaches the log, so the run record
+      #   shows exactly which versions were changed.
       - name: Apply
         if: ${{ inputs.confirm }}
         run: |
           set -euo pipefail
           ./mcp-publisher login github-oidc
-          ./mcp-publisher status \
+          printf 'y\n' | ./mcp-publisher status \
             --status '${{ inputs.status }}' \
             --all-versions \
             --message 'Duplicate listing. The maintained entry is com.donnyautomation/dex-data, which is DNS-verified and current; this one predates it and advertises an outdated six-tool description. The npm package dex-data-mcp is unaffected.' \
