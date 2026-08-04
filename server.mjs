@@ -304,11 +304,17 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       properties: {
-        q: { type: 'string', description: 'Legal entity name, max 200 chars. Include the suffix for precision, e.g. "Apple Inc.".' },
+        // The old text here read "include the suffix for precision, e.g. Apple
+        // Inc." — advice that only existed because the search ranked a street
+        // address above the company. Results are ranked now, so a bare brand
+        // name works and the instruction to already know the answer is gone.
+        q: { type: 'string', description: 'Legal entity name, max 200 chars. A bare brand name works — "Apple" finds Apple Inc. Results are ranked by name match across the legal name and any alternative names.' },
         lei: { type: 'string', description: 'Exact 20-character LEI, for a single record instead of a name search.' },
         limit: { type: 'number', description: 'Maximum name-search results, 1..50. Default 10.' },
       },
     },
+    // A name OR an identifier — an AND-only `required` list cannot say that.
+    requireOneOf: ['q', 'lei'],
     route: (a) => (a.lei
       ? `/lei?lei=${encodeURIComponent(a.lei)}`
       : `/lei?q=${encodeURIComponent(a.q || '')}${a.limit != null ? `&limit=${encodeURIComponent(a.limit)}` : ''}`),
@@ -453,6 +459,48 @@ async function callTool(name, args) {
     throw new Error(`unknown chain "${a.chain}". Supported: ${chainValues.join(', ')}`);
   }
   if (tool.local) return { text: JSON.stringify(tool.local(), null, 2), isError: false };
+
+  // ★ REQUIRED ARGUMENTS ARE ENFORCED HERE, NOT MERELY DECLARED.
+  //
+  //   Every tool publishes inputSchema.required and nothing ever checked it. A
+  //   call omitting one interpolated `undefined` straight into the route:
+  //   get_token_price with no token produced
+  //
+  //       https://x402.donnyautomation.com/price?symbol=undefined
+  //
+  //   and then FETCHED it. That spends a free-tier call, and with DEX_WALLET_KEY
+  //   configured it spends real USDC — on a query that cannot return an answer.
+  //   The spec expects clients to validate against the schema, but a model-driven
+  //   client dropping an argument is the ordinary case, not the exotic one, and
+  //   the cost of trusting it lands here.
+  //
+  //   Empty string counts as missing: `?symbol=` is exactly as unanswerable as
+  //   `?symbol=undefined`, and would be paid for just the same.
+  const given = (k) => !(a[k] === undefined || a[k] === null || a[k] === '');
+  const required = tool.inputSchema?.required || [];
+  const missing = required.filter((k) => !given(k));
+  if (missing.length) {
+    const describe = (k) => `${k}: ${tool.inputSchema?.properties?.[k]?.description || 'required'}`;
+    throw new Error(
+      `${name} needs ${missing.map((m) => `"${m}"`).join(', ')}, `
+      + `which ${missing.length > 1 ? 'were' : 'was'} not provided. Nothing was requested and nothing was spent.\n  `
+      + missing.map(describe).join('\n  '),
+    );
+  }
+  // ★ "One of these" cannot be said with inputSchema.required, which is an AND.
+  //   lookup_lei takes a name OR an identifier, so it declares neither as
+  //   required — and a bare call sailed through the check above and requested
+  //   /lei?q=, which the gateway answers 400 missing_query. A paid-for 400.
+  //   requireOneOf closes the gap that expressing the constraint in the schema
+  //   cannot.
+  if (tool.requireOneOf && !tool.requireOneOf.some(given)) {
+    throw new Error(
+      `${name} needs one of ${tool.requireOneOf.map((k) => `"${k}"`).join(' or ')}. `
+      + 'Nothing was requested and nothing was spent.\n  '
+      + tool.requireOneOf.map((k) => `${k}: ${tool.inputSchema?.properties?.[k]?.description || ''}`).join('\n  '),
+    );
+  }
+
   let route = tool.route(a);
   if (tool.fix) route = tool.fix(a, route);
   // chain is a path prefix, not a query param — that is how each chain gets its

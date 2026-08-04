@@ -1,0 +1,51 @@
+# ci.yml — gate this package the way the gateway and agent-utils are gated.
+#
+# This repo had publish.yml and registry.yml but nothing that RAN the server
+# before shipping it, so the only test of a release was npm-publishing it and
+# waiting. That is how an argument-validation hole reached 1.5.0: every tool
+# declared inputSchema.required, nothing enforced it, and a call missing an
+# argument fetched `?symbol=undefined` — spending a free-tier call, or real
+# USDC with DEX_WALLET_KEY set, on a query that could not return an answer.
+#
+# Nothing here touches the network: the assertions are about calls that must
+# NOT be made, so CI cannot go red because a free tier is spent or an upstream
+# is slow.
+
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: syntax check (every tracked .js/.cjs/.mjs)
+        run: |
+          set -euo pipefail
+          files=$(git ls-files '*.js' '*.cjs' '*.mjs')
+          [ -n "$files" ] || { echo "::error::no source files matched — the glob is wrong"; exit 1; }
+          echo "$files" | while read -r f; do node --check "$f"; done
+          echo "checked $(echo "$files" | wc -l) file(s)"
+
+      # ★ The published package.json is what the MCP registry reads to prove npm
+      #   ownership. If mcpName drifts from the registry namespace, publishing
+      #   succeeds and the registry entry silently stops resolving to this
+      #   package — a one-way door that is far cheaper to catch here.
+      - name: mcpName matches the canonical registry namespace
+        run: |
+          set -euo pipefail
+          NAME=$(node -p "require('./package.json').mcpName || ''")
+          [ "$NAME" = "com.donnyautomation/dex-data" ] || {
+            echo "::error::package.json mcpName is '$NAME', expected com.donnyautomation/dex-data"; exit 1; }
+          echo "mcpName: $NAME"
+
+      - name: argument validation over real stdio JSON-RPC (no network)
+        run: node test/arg-validation.test.mjs
