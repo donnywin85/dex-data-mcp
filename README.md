@@ -1,5 +1,30 @@
 # dex-data MCP server
 
+**Twenty-two tools for your agent — DEX market data, everyday utilities and
+reference data — with no API key, no wallet and no signup.**
+
+## Try it in 30 seconds
+
+```bash
+claude mcp add dex-data -- npx -y dex-data-mcp
+```
+
+That is the whole install. Ask your agent *"what's the price of WBNB on BSC?"*
+and it answers from live on-chain pool state:
+
+```json
+{
+  "symbol": "WBNB", "priceUsd": 677.25, "network": "bsc",
+  "via": "WBNB/USDT", "venues": 7, "totalTvlUsd": 117110555.6,
+  "confidence": "HIGH", "spreadBps": 25.26, "blockNumber": 117223818
+}
+```
+
+**Measured 2026-08-21: all 22 tools answered keyless, with full payloads.** No
+tool is degraded on the free tier, and none returns a stub or a placeholder — the
+free answer is the same answer. What the free tier limits is *how many* calls per
+day, not what is in them.
+
 Twenty-two tools, no API key and no wallet, in three groups:
 
 - **Multi-chain DEX market data** — token prices, liquidity depth, pool reserves,
@@ -126,3 +151,23 @@ price is worse than no price when an agent may trade on it.
   They are not the same number and are not labelled as if they were.
 - `get_slippage` is pool-level price impact: it excludes gas, MEV and multi-hop
   routing, and flags v3 estimates that cross the active tick band.
+- A tool called without its required argument is **refused before any request is
+  made**, so a malformed call never spends a free-tier slot or a cent. The refusal
+  names the argument: `search` needs `q`, `get_slippage` needs `amountUsd` or
+  `amountIn`, `lookup_lei` needs `q` or `lei`.
+
+## Where to go next
+
+- **Cross-DEX spread only, on six chains** — [`arb-dex-mcp`](https://github.com/donnywin85/arb-dex-mcp)
+  is the focused sibling: `npx -y arb-dex-mcp`. Keyless too, and its free answers
+  carry a `limitation` field naming exactly what a key would add.
+- **You want paid, per-call BSC spread with no free-tier ceiling** —
+  [`bsc-dex-spread-mcp`](https://github.com/donnywin85/bsc-dex-spread-mcp), $0.01 USDC
+  a call from your own wallet.
+- **You want the compliance pair (OFAC screening, GLEIF LEI)** —
+  [`agent-utils-mcp`](https://github.com/donnywin85/agent-utils-mcp).
+- **You want the human-approval job queue this whole stack is operated by** —
+  [`approval-queue-starter`](https://github.com/donnywin85/approval-queue-starter),
+  one file, zero dependencies.
+- **The weekly measurements, free** — <https://arbdatadesk.beehiiv.com>.
+  **The live dashboard** — <https://arb-dex-data-production.up.railway.app/dashboard>.
