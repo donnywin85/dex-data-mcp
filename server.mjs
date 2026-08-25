@@ -13,9 +13,34 @@
 // and trying it. Fewer barriers, more usage.
 
 import { createInterface } from 'node:readline';
-import { fetchMaybePaid, payEnabled, budget } from './pay.mjs';
+import { fetchMaybePaid, payEnabled, budget, WALLET_ENV_NAMES } from './pay.mjs';
+
+// ★ ONE PLACE. The version was hardcoded in three: the user-agent said 1.1 while
+//   package.json said 1.5.1 and serverInfo said 1.5.1. The UA is not cosmetic -
+//   the gateway resolves attribution from it, and a stale one made "which build
+//   is actually calling us" unanswerable from the ledger.
+const VERSION = '1.6.0';
 
 const BASE = (process.env.X402_BASE || 'https://x402.donnyautomation.com').replace(/\/$/, '');
+
+// ══ ATTRIBUTION ════════════════════════════════════════════════════════════
+//
+// WHY THIS HEADER EXISTS. The 2026-08-04 -> 08-25 cycle closed with 4 settled
+// external calls from 3 wallets and NO WAY TO SAY WHERE ANY OF THEM CAME FROM.
+// The gateway now records a `src` bucket on every ledger row; this is the client
+// half of that sensor. Without it, a payer arriving through this npm package is
+// indistinguishable from one who found the origin by other means, and the cycle
+// cannot answer the only question it exists to ask.
+//
+// `npm-client` is a member of the gateway's CLOSED enum (SRC_BUCKETS in
+// server.js). Do not invent a new value here: an unrecognised tag is recorded as
+// `unknown` with `srcRejected` set, so a typo reads as silence, not as an error.
+//
+// The user-agent is the FALLBACK for the same question and must keep matching
+// the gateway's CLIENT_PATTERNS entry /^dex-data-mcp\//i - so the package name
+// and the trailing slash are load-bearing, not decoration.
+const SRC_TAG = 'npm-client';
+const USER_AGENT = `dex-data-mcp/${VERSION} (+https://github.com/donnywin85/dex-data-mcp)`;
 const TIMEOUT_MS = Number(process.env.DEX_MCP_TIMEOUT_MS || 45000);
 const CHAINS = ['bsc', 'polygon', 'arbitrum', 'base', 'avalanche', 'optimism'];
 
@@ -430,6 +455,57 @@ const TOOLS = [
     route: () => '/chains',
     free: true,
   },
+  // ══ PAID TOOLS ═══════════════════════════════════════════════════════════
+  //
+  // P1 (forensics 2026-08-22 section 5): COLLAPSE TO ONE CLIENT. This tool was
+  // the whole of the separate `bsc-dex-spread-mcp` package, which drew 159 npm
+  // downloads in 30 days against this package's 2,070 - a 13x gap, re-measured
+  // 2026-08-25. Every proven earner in the measured economy ships ONE client
+  // holding free and paid surfaces rather than two packages; splitting them put
+  // the paid surface on the shelf nobody walks past.
+  //
+  // It sits in the SAME array as the free tools on purpose. There is no separate
+  // paid client, no second install, no second config: the tool 402s, and if a
+  // wallet is configured the existing spend-capped pay path settles it.
+  {
+    name: 'get_dex_spread',
+    description:
+      'PAID ($0.01 USDC/call, no free tier). Real-time cross-DEX price & spread for BSC: '
+      + 'per-venue prices across PancakeSwap v2, PancakeSwap v3 (all fee tiers), Biswap and '
+      + 'ApeSwap in one call, plus best buy/sell venue, gross arbitrage spread (bps + USD), '
+      + 'optimal trade size, liquidity and block number. '
+      + 'Params: pair=SYM/SYM (e.g. WBNB/USDC), optional fee=v3 tier. '
+      + 'Needs a funded wallet in ' + WALLET_ENV_NAMES.join(' or ') + '; without one it '
+      + 'returns payment instructions and spends nothing. '
+      + 'Cheaper alternatives in this same server, free for 25 calls/day and no wallet: '
+      + '"get_liquidity" for per-venue depth and "find_arbitrage" for a cross-venue spread scan.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pair: {
+          type: 'string',
+          description: 'Token pair as SYM/SYM; first symbol is the USD-priceable side (e.g. WBNB/USDC, WBNB/USDT, CAKE/WBNB).',
+        },
+        fee: {
+          type: 'string',
+          description: 'Optional PancakeSwap v3 fee tier to restrict the v3 probe (e.g. 100, 500, 2500, 10000). Omit to probe all v3 tiers + v2.',
+        },
+      },
+      required: ['pair'],
+    },
+    // BSC only - the upstream has no per-chain paths for this route, so the tool
+    // declares no `chain` property and never takes the /<chain> prefix.
+    route: (a) => {
+      const qs = new URLSearchParams({ pair: a.pair });
+      if (a.fee) qs.set('fee', String(a.fee));
+      return `/call?${qs.toString()}`;
+    },
+    // ★ NO FREE TIER ON THIS ROUTE. The gateway grants its 25/day allowance to
+    //   the 21 PRODUCTS routes; /call is not one of them. Saying "your free
+    //   allowance ran out" here would be a lie, and it would send the user
+    //   looking for a reset that never comes. [derive-or-delete]
+    paidOnly: true,
+  },
 ];
 
 // The paid routes sit behind an x402 paywall. Without a wallet an MCP client gets
@@ -437,23 +513,47 @@ const TOOLS = [
 // error the model has to guess at.
 function paywallMessage(tool, url, reason) {
   const b = budget();
-  const lines = [
-    'Daily free allowance used up for this caller, so this call needs payment.',
-    '',
-    `  ${url}`,
-    '',
-    'The allowance resets every 24h. Still free: the "list_chains" tool.',
-    '',
-  ];
+  // Two genuinely different situations, and conflating them wastes the user's
+  // time. A free-tier tool 402s because TODAY's allowance is gone and will work
+  // again tomorrow; a paidOnly tool 402s because it never had an allowance and
+  // never will. [derive-or-delete]
+  const lines = tool.paidOnly
+    ? [
+      `"${tool.name}" is a paid tool: $0.01 USDC per call on Base, and it has no free tier.`,
+      '',
+      `  ${url}`,
+      '',
+      'Free alternatives in this same server (25 calls/day, no wallet needed):',
+      '  get_liquidity   - per-venue depth and TVL for a pair',
+      '  find_arbitrage  - cross-venue spread scan',
+      '',
+    ]
+    : [
+      'Daily free allowance used up for this caller, so this call needs payment.',
+      '',
+      `  ${url}`,
+      '',
+      'The allowance resets every 24h. Still free: the "list_chains" tool.',
+      '',
+    ];
   if (payEnabled()) {
     lines.push(`A wallet IS configured, but this call was not paid: ${reason || 'unknown'}.`,
       `Budget so far: $${b.spentUsd} of $${b.maxSpendUsd} across ${b.calls} paid call(s).`,
       'Raise DEX_MAX_SPEND_USD / DEX_MAX_PRICE_USD / DEX_MAX_CALLS to allow more.');
   } else {
-    lines.push('To keep going, set DEX_WALLET_KEY to a funded wallet private key and',
-      'calls will pay themselves with x402 (USDC on Base, ~$0.01 each).',
-      'Spend is capped: DEX_MAX_SPEND_USD (default $1), DEX_MAX_PRICE_USD (default',
-      '$0.05/call) and DEX_MAX_CALLS (default 200). Use a burner wallet, not a main one.');
+    // NAME THE VARIABLE. "Configure a wallet" is not actionable; a variable name
+    // and a shape are. Both accepted names are printed because a user arriving
+    // from bsc-dex-spread-mcp already has the second one set.
+    lines.push('To enable payment, set ONE of these to a funded wallet private key:',
+      ...WALLET_ENV_NAMES.map((n) => `  ${n}=0x<64 hex chars>`),
+      '',
+      'Set it in your MCP client\'s server config for this package (the "env" block),',
+      'then calls pay themselves with x402 - USDC on Base, no ETH needed.',
+      'Fund it with a few dollars of USDC on Base and NOTHING else: the key sits in',
+      'that config in plaintext, so use a burner wallet, never a main one.',
+      '',
+      'Spend is capped and fails closed: DEX_MAX_SPEND_USD (default $1 total),',
+      'DEX_MAX_PRICE_USD (default $0.05/call) and DEX_MAX_CALLS (default 200).');
   }
   return lines.join('\n');
 }
@@ -522,9 +622,15 @@ async function callTool(name, args) {
   const prefix = !tool.chainInQuery && a.chain && a.chain !== 'bsc' ? `/${a.chain}` : '';
   const url = `${BASE}${prefix}${route}`;
 
-  // Identify the client so free-tier usage is attributable to MCP rather than
+  // Identify the client so usage is attributable to this npm package rather than
   // lost among anonymous traffic - this is how we learn which channel works.
-  const headers = { accept: 'application/json', 'user-agent': 'dex-data-mcp/1.1 (+https://github.com/donnywin85/dex-data-mcp)' };
+  // Both surfaces are sent: the header is authoritative, the user-agent is the
+  // gateway's fallback if a proxy ever strips it. See SRC_TAG above.
+  const headers = {
+    accept: 'application/json',
+    'user-agent': USER_AGENT,
+    'x-402-source': SRC_TAG,
+  };
 
   // Pays automatically only if a wallet is configured AND every budget cap allows
   // it; otherwise this is an ordinary fetch and the 402 is explained.
@@ -551,7 +657,7 @@ async function handle(req) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'dex-data', version: '1.5.1' },
+      serverInfo: { name: 'dex-data', version: VERSION },
     };
   }
   if (method === 'tools/list') {

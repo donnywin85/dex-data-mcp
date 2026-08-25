@@ -1,7 +1,7 @@
 {
   "name": "dex-data-mcp",
-  "version": "1.5.1",
-  "description": "DEX data, geocoding, weather, search, holidays, LEI, yield curve. 22 tools, free tier.",
+  "version": "1.6.0",
+  "description": "DEX data, geocoding, weather, search, holidays, LEI, yield curve. 23 tools: 22 free-tier, plus a paid cross-DEX spread tool that pays from your own wallet.",
   "type": "module",
   "bin": {
     "dex-data-mcp": "server.mjs"
@@ -48,7 +48,12 @@
     "gwei",
     "arbitrage",
     "pool-reserves",
-    "amm"
+    "amm",
+    "cross-dex",
+    "spread",
+    "bsc",
+    "x402-payments",
+    "pay-per-call"
   ],
   "author": "donnyautomation",
   "license": "MIT",

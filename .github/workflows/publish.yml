@@ -67,8 +67,14 @@ jobs:
             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
             const srv = JSON.parse(fs.readFileSync("server.json", "utf8"));
             const src = fs.readFileSync("server.mjs", "utf8");
-            const m = src.match(/serverInfo:\s*\{[^}]*version:\s*"([^"]+)"|serverInfo:\s*\{[^}]*version:\s*\x27([^\x27]+)\x27/);
-            const info = m && (m[1] || m[2]);
+            // serverInfo now reads a single VERSION const rather than a literal, so
+            // the UA and the handshake CANNOT drift from each other by construction.
+            // Check the const, and assert serverInfo still refers to it - a future
+            // edit re-hardcoding a literal there would silently reopen the drift.
+            const info = (src.match(/^const VERSION = ["\x27]([^"\x27]+)["\x27];/m) || [])[1];
+            if (!/serverInfo:\s*\{[^}]*version:\s*VERSION\b/.test(src)) {
+              console.error("serverInfo must read the VERSION const, not a hardcoded literal"); process.exit(1);
+            }
             const seen = { "package.json": pkg, "server.json": srv.version, "server.json packages[0]": srv.packages[0].version, "serverInfo": info };
             console.log(seen);
             if (!info) { console.error("could not find serverInfo version in server.mjs"); process.exit(1); }
@@ -111,8 +117,9 @@ jobs:
               // A FLOOR, not an exact count — raise it when tools are added, so a
               // regression that silently drops tools still fails the build. It sat
               // at 6 while the package shipped 13: a floor that far below reality
-              // cannot catch losing half the catalogue.
-              const FLOOR = 22;
+              // cannot catch losing half the catalogue. 23 since 1.6.0 added the
+              // paid get_dex_spread tool (P1, collapse to one client).
+              const FLOOR = 23;
               if (tools.length < FLOOR) {
                 console.error(`expected at least ${FLOOR} tools, got ${tools.length}: ${tools.map(t => t.name).join(", ")}`);
                 process.exit(1);

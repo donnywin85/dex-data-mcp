@@ -5,9 +5,16 @@
 // "DEX_API_KEY" that the gateway never implemented — a dangling promise at the
 // exact moment someone wants to hand over money. This makes the paid path real.
 //
-// OPT-IN ONLY. Nothing here runs unless the user sets DEX_WALLET_KEY. A package
+// OPT-IN ONLY. Nothing here runs unless the user sets a wallet key. A package
 // that strangers install must never move funds because a model decided to call a
 // tool a few extra times.
+//
+// TWO ACCEPTED KEY NAMES, ONE MEANING. DEX_WALLET_KEY is this package's own name
+// and stays first. EVM_PRIVATE_KEY is the name the CDP x402 MCP docs use, and the
+// name bsc-dex-spread-mcp read - so when the paid tool moved in here (P1), every
+// MCP client config already written against that package keeps working untouched.
+// Accepting both is the point of collapsing to one client: a user who had the
+// paid server installed must not have to rename an env var to keep paying.
 //
 // SPEND CAPS ARE NOT OPTIONAL. The caller here is an LLM, which can loop. Three
 // independent limits, all failing closed:
@@ -28,8 +35,24 @@ let state = { spentUsd: 0, calls: 0 };
 let payFetch = null;
 let initError = null;
 
+// The env var names we accept, in precedence order. Exported so the paywall
+// message can NAME them instead of making the user guess which one this build
+// reads. An error that does not name the variable to set is not actionable.
+export const WALLET_ENV_NAMES = ['DEX_WALLET_KEY', 'EVM_PRIVATE_KEY'];
+
+// Returns { name, key } for the first name that is set, else null. The NAME
+// travels with the key so an invalid-key error can say WHICH variable is wrong;
+// with two accepted names, "the key is malformed" is not actionable on its own.
+export function walletKey() {
+  for (const name of WALLET_ENV_NAMES) {
+    const v = (process.env[name] || '').trim();
+    if (v) return { name, key: v };
+  }
+  return null;
+}
+
 export function payEnabled() {
-  return !!(process.env.DEX_WALLET_KEY || '').trim();
+  return !!walletKey();
 }
 
 export function budget() {
@@ -52,10 +75,12 @@ async function getPayFetch() {
         import('@x402/fetch'), import('@x402/core/client'),
         import('@x402/evm/exact/client'), import('viem/accounts'),
       ]);
-    const raw = process.env.DEX_WALLET_KEY.trim();
-    const key = raw.startsWith('0x') ? raw : `0x${raw}`;
+    const found = walletKey();
+    if (!found) throw new Error(`no wallet key set (${WALLET_ENV_NAMES.join(' or ')})`);
+    const key = found.key.startsWith('0x') ? found.key : `0x${found.key}`;
     if (!/^0x[0-9a-fA-F]{64}$/.test(key)) {
-      throw new Error('DEX_WALLET_KEY is not a 32-byte hex private key');
+      // Name the variable that is wrong, NEVER its value. [fingerprints-only]
+      throw new Error(`${found.name} is not a 32-byte hex private key`);
     }
     const account = privateKeyToAccount(key);
     const client = new x402Client();

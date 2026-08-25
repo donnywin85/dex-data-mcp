@@ -37,8 +37,35 @@ const CHAINS = ['bsc', 'polygon', 'arbitrum', 'base', 'avalanche', 'optimism'];
 // gateway product without a tool breaks the next release rather than going
 // unnoticed until someone reads two repos side by side.
 const EXEMPT = {
-  '/call': 'legacy generic proxy, superseded by the named product routes',
+  // '/call' was exempt as a "legacy generic proxy" until 2026-08-25, when P1
+  // moved the paid cross-DEX spread tool into this server and gave it a real
+  // tool (get_dex_spread). It is covered now, so the exemption is removed
+  // rather than left to read as a permanent gap.
   '/v4hooks': 'one-off research product, not part of the general catalogue',
+
+  // ⚠ A WAIVER, NOT A PASS — and it re-announces itself every run, because a
+  //   silent exemption reads as "covered" when it is not.
+  //
+  //   '/sanctions' has NO tool here. It has one in the sibling repo
+  //   agent-utils-mcp ('sanctions_screen'), but that package is NOT on npm —
+  //   `npm view agent-utils-mcp version` 404s, measured 2026-08-25. So on the
+  //   npm channel this product is genuinely uncovered, and this entry does not
+  //   pretend otherwise.
+  //
+  //   It is NOT closed here because this repo is mid-way through the
+  //   pre-registered x402-p1p2p3 cycle (t0 2026-08-25T22:03:44Z, verdict
+  //   2026-09-15T22:03:44Z), whose spec adds no products and whose readability
+  //   depends on the tool surface not moving underneath it. Adding a tool now
+  //   would change the thing being measured while it is being measured.
+  //
+  //   This gap PREDATES that cycle: it fails identically on the untouched 1.5.1
+  //   tree, so it has been blocking releases since /sanctions shipped on the
+  //   gateway — which is why it surfaced here rather than being introduced here.
+  //
+  //   VOID THIS ENTRY when either fact stops being true: agent-utils-mcp reaches
+  //   npm, or the cycle closes on 2026-09-15. Then either cover /sanctions with a
+  //   tool or write a new reason. Do not let it age into furniture.
+  '/sanctions': 'UNCOVERED on npm — tool exists only in agent-utils-mcp, which is not published (404, 2026-08-25). Deferred, not solved: no product may be added during the x402-p1p2p3 cycle. Revisit 2026-09-15.',
 };
 
 function familyOf(p) {

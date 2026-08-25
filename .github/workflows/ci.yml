@@ -63,8 +63,15 @@ jobs:
             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
             const sj = JSON.parse(fs.readFileSync("server.json", "utf8"));
             const src = fs.readFileSync("server.mjs", "utf8");
-            const info = (src.match(/serverInfo:\s*\{[^}]*version:\s*.([0-9.]+)./) || [])[1];
-            if (!info) { console.error("could not find serverInfo version in server.mjs"); process.exit(1); }
+            // serverInfo reads a single VERSION const (since 1.6.0), so the
+            // user-agent the gateway attributes on and the version a client sees at
+            // handshake cannot drift apart. Check that const, and assert serverInfo
+            // still refers to it rather than a re-hardcoded literal.
+            const info = (src.match(/^const VERSION = ["\x27]([^"\x27]+)["\x27];/m) || [])[1];
+            if (!info) { console.error("could not find the VERSION const in server.mjs"); process.exit(1); }
+            if (!/serverInfo:\s*\{[^}]*version:\s*VERSION\b/.test(src)) {
+              console.error("serverInfo must read the VERSION const, not a hardcoded literal"); process.exit(1);
+            }
             const seen = { "package.json": pkg, "server.json": sj.version, "server.json packages[0]": sj.packages?.[0]?.version, serverInfo: info };
             const bad = Object.entries(seen).filter(([, v]) => v !== pkg);
             if (bad.length) { console.error("VERSION MISMATCH:", seen); process.exit(1); }
