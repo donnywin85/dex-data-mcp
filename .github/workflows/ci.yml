@@ -78,5 +78,25 @@ jobs:
             console.log(`OK: all four report ${pkg}`);
           '
 
+      # ★ The MCP registry caps server.json description at 100 characters and
+      #   rejects the whole publish with a 422 if it is longer. Nothing local
+      #   said so: package.json has no such limit, the JSON schema does not
+      #   express it, and `mcp-publisher validate` only learns it by asking the
+      #   registry. So a description written for npm sailed through every check
+      #   here and failed at the registry AFTER npm had already published — the
+      #   two halves of a release out of step, with agents browsing the registry
+      #   still being pointed at the previous version. Assert it locally so the
+      #   limit is discovered at commit time, not at release time.
+      - name: server.json description fits the MCP registry limit
+        run: |
+          node -e '
+            const d = JSON.parse(require("fs").readFileSync("server.json", "utf8")).description || "";
+            console.log(`server.json description: ${d.length} chars`);
+            if (d.length > 100) {
+              console.error(`::error::server.json description is ${d.length} chars; the MCP registry rejects anything over 100 with a 422`);
+              process.exit(1);
+            }
+          '
+
       - name: argument validation over real stdio JSON-RPC (no network)
         run: node test/arg-validation.test.mjs
