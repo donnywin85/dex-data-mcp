@@ -1,5 +1,7 @@
 # dex-data MCP server
 
+[![dex-data-mcp MCP server](https://glama.ai/mcp/servers/donnywin85/dex-data-mcp/badges/score.svg)](https://glama.ai/mcp/servers/donnywin85/dex-data-mcp)
+
 **Twenty-three tools for your agent — DEX market data, everyday utilities and
 reference data. Twenty-two need no API key, no wallet and no signup; one is paid
 and pays from a wallet you control.**
