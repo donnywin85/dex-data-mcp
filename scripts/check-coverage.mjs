@@ -66,6 +66,28 @@ const EXEMPT = {
   //   npm, or the cycle closes on 2026-09-15. Then either cover /sanctions with a
   //   tool or write a new reason. Do not let it age into furniture.
   '/sanctions': 'UNCOVERED on npm — tool exists only in agent-utils-mcp, which is not published (404, 2026-08-25). Deferred, not solved: no product may be added during the x402-p1p2p3 cycle. Revisit 2026-09-15.',
+
+  // ⚠ FOUR MORE WAIVERS, 2026-09-09, each a live-window fence and not a choice.
+  //
+  //   The three /edgar routes are the SUBJECT of `s2-edgar-open`, a pre-registered
+  //   window (t0 2026-08-28T07:09:40Z, verdict 2026-09-27T07:09:40Z) that measures
+  //   whether external wallets pay for them AS LISTED. Giving them an MCP tool
+  //   mid-window changes the arrival surface of the thing being measured; the
+  //   window would then read the tool, not the listing. They are uncovered on
+  //   npm and this says so. '/company' shipped on the gateway after 1.6.0 and is
+  //   held by the cycle-3 hold-still (verdict 2026-09-27T08:54:50.647Z): no tool
+  //   is added while that window is open.
+  //
+  //   This is what blocked the 1.6.1 publish (run 34370444735): the gateway grew
+  //   four products after the last release and this gate did its job. The
+  //   release it was blocking contains only buyer-safety fixes in pay.mjs.
+  //
+  //   VOID THESE FOUR on 2026-09-27 when both windows have verdicts: cover them
+  //   with tools, or write a new reason. Do not let them age into furniture.
+  '/edgar/filings': 'subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.',
+  '/edgar/events': 'subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.',
+  '/edgar/insiders': 'subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.',
+  '/company': 'shipped on the gateway after 1.6.0; held by the cycle-3 hold-still (verdict 2026-09-27T08:54:50.647Z). No tool while the window is open. UNCOVERED on npm until then.',
 };
 
 function familyOf(p) {
