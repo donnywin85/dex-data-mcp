@@ -19,7 +19,7 @@ import { fetchMaybePaid, payEnabled, budget, WALLET_ENV_NAMES } from './pay.mjs'
 //   package.json said 1.5.1 and serverInfo said 1.5.1. The UA is not cosmetic -
 //   the gateway resolves attribution from it, and a stale one made "which build
 //   is actually calling us" unanswerable from the ledger.
-const VERSION = '1.6.0';
+const VERSION = '1.6.1';
 
 const BASE = (process.env.X402_BASE || 'https://x402.donnyautomation.com').replace(/\/$/, '');
 
