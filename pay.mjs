@@ -31,7 +31,13 @@ const MAX_SPEND_USD = Number(process.env.DEX_MAX_SPEND_USD || 1.0);
 const MAX_PRICE_USD = Number(process.env.DEX_MAX_PRICE_USD || 0.05);
 const MAX_CALLS = Number(process.env.DEX_MAX_CALLS || 200);
 
-let state = { spentUsd: 0, calls: 0 };
+// Accounted in integer micro-USD (USDC has 6 dp). Summing floats drifted:
+// 19 x 0.05 became 0.9500000000000001 and the 20th $0.05 call was refused
+// against a $1.00 budget. Integers make the budget mean what it says.
+const UNITS = 1e6;
+const MAX_SPEND_UNITS = Math.round(MAX_SPEND_USD * UNITS);
+const MAX_PRICE_UNITS = Math.round(MAX_PRICE_USD * UNITS);
+let state = { spentUnits: 0, calls: 0 };
 let payFetch = null;
 let initError = null;
 
@@ -57,12 +63,12 @@ export function payEnabled() {
 
 export function budget() {
   return {
-    spentUsd: Number(state.spentUsd.toFixed(4)),
+    spentUsd: state.spentUnits / UNITS,
     calls: state.calls,
     maxSpendUsd: MAX_SPEND_USD,
     maxCalls: MAX_CALLS,
     maxPricePerCallUsd: MAX_PRICE_USD,
-    remainingUsd: Number(Math.max(0, MAX_SPEND_USD - state.spentUsd).toFixed(4)),
+    remainingUsd: Math.max(0, MAX_SPEND_UNITS - state.spentUnits) / UNITS,
   };
 }
 
@@ -106,8 +112,8 @@ function priceFromChallenge(res) {
     const a = (j.accepts || [])[0];
     if (!a) return null;
     // amount is in the asset's smallest unit; USDC is 6dp.
-    const amt = Number(a.amount ?? a.maxAmountRequired ?? 0);
-    return Number.isFinite(amt) ? amt / 1e6 : null;
+    const amt = Number(a.amount ?? a.maxAmountRequired);
+    return Number.isFinite(amt) && amt >= 0 ? Math.round(amt) : null; // integer micro-USD
   } catch { return null; }
 }
 
@@ -120,24 +126,48 @@ export async function fetchMaybePaid(url, opts = {}) {
   if (res.status !== 402) return { res, paid: false };
   if (!payEnabled()) return { res, paid: false, reason: 'no wallet configured' };
 
-  const price = priceFromChallenge(res);
-  if (price != null && price > MAX_PRICE_USD) {
+  const priceUnits = priceFromChallenge(res);
+  const price = priceUnits == null ? null : priceUnits / UNITS;
+  // FAIL CLOSED on an unreadable price. Before this, a challenge whose amount
+  // could not be parsed skipped the per-call ceiling (`price != null && ...`)
+  // and then added 0 to spentUsd after paying - so the session budget never
+  // filled and only MAX_CALLS bounded the process. A cap that a malformed
+  // header can switch off is not a cap. Found 2026-09-09 by reading the code
+  // against the comment above it ("all failing closed"); pinned by
+  // test/budget.test.mjs.
+  if (price == null) {
+    return { res, paid: false, reason: 'challenge price unreadable; refusing to pay (fail closed)' };
+  }
+  if (priceUnits > MAX_PRICE_UNITS) {
     return { res, paid: false, reason: `call costs $${price} which exceeds DEX_MAX_PRICE_USD ($${MAX_PRICE_USD})` };
   }
   if (state.calls >= MAX_CALLS) {
     return { res, paid: false, reason: `paid-call limit reached (${MAX_CALLS})` };
   }
-  const projected = state.spentUsd + (price ?? MAX_PRICE_USD);
-  if (projected > MAX_SPEND_USD) {
-    return { res, paid: false, reason: `spend cap reached ($${state.spentUsd.toFixed(4)} of $${MAX_SPEND_USD})` };
+  const projected = state.spentUnits + priceUnits;
+  if (projected > MAX_SPEND_UNITS) {
+    return { res, paid: false, reason: `spend cap reached ($${(state.spentUnits / UNITS).toFixed(4)} of $${MAX_SPEND_USD})` };
   }
 
   try {
     const { fn } = await getPayFetch();
     const paidRes = await fn(url, opts);
-    if (paidRes.ok) { state.spentUsd += price ?? 0; state.calls += 1; }
+    if (paidRes.ok) { state.spentUnits += priceUnits; state.calls += 1; }
     return { res: paidRes, paid: paidRes.ok, price };
   } catch (e) {
     return { res, paid: false, reason: String((e && e.message) || e) };
   }
+}
+
+// ── test seam ──────────────────────────────────────────────────────────────
+// Lets test/budget.test.mjs drive fetchMaybePaid with a fake paying fetch and a
+// fresh budget, without a wallet key, a network, or the optional x402 packages.
+// Not part of the public surface; the leading underscore is the contract.
+export function _resetBudgetForTests() {
+  state = { spentUnits: 0, calls: 0 };
+  payFetch = null;
+  initError = null;
+}
+export function _setPayFetchForTests(fn) {
+  payFetch = { fn, address: '0xtest' };
 }

@@ -1,6 +1,6 @@
 {
   "name": "dex-data-mcp",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "DEX data, geocoding, weather, search, holidays, LEI, yield curve. 23 tools: 22 free-tier, plus a paid cross-DEX spread tool that pays from your own wallet.",
   "type": "module",
   "bin": {
