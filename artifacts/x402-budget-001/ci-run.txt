@@ -1,0 +1,14 @@
+success  Set up job
+success  Run actions/checkout@v4
+success  Run actions/setup-node@v4
+success  link the workspace (no registry contact)
+success  syntax check (every tracked .js/.cjs/.mjs)
+success  mcpName matches the canonical registry namespace
+success  all four version sites agree
+success  server.json description fits the MCP registry limit
+success  argument validation over real stdio JSON-RPC (no network)
+success  spend caps still fail closed (dex-data-mcp adapter)
+success  spend caps and receipts (x402-budget library)
+success  Post Run actions/setup-node@v4
+success  Post Run actions/checkout@v4
+success  Complete job
