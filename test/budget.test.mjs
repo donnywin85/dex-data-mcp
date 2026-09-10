@@ -20,6 +20,10 @@ process.env.DEX_WALLET_KEY = 'unused-by-the-injected-fetch';
 
 const { fetchMaybePaid, budget, _resetBudgetForTests, _setPayFetchForTests } = await import('../pay.mjs');
 
+// 1.7.0: the extraction moved the caps into x402-budget. This suite is the
+// regression fence for that move and now also pins the attribution header,
+// which the library sets and which used to be server.mjs's job.
+
 const challenge = (amountUnits) => Buffer.from(JSON.stringify({ accepts: [{ amount: amountUnits }] })).toString('base64');
 const res402 = (hdr) => new Response('pay', { status: 402, headers: hdr ? { 'payment-required': hdr } : {} });
 const res200 = () => new Response('{"ok":true}', { status: 200 });
@@ -75,6 +79,81 @@ const check = (name, pass, detail = '') => {
 {
   const wouldHaveSignedUnderOldCode = 50;
   check('negative control: the old behaviour (50 signatures) is what case 2 rejects', wouldHaveSignedUnderOldCode !== 0);
+}
+
+// Case 5: ATTRIBUTION SURVIVES ON THE FREE PATH.
+//
+// Added at 1.7.0, when the x-402-source header moved out of server.mjs and into
+// the x402-budget library. The overwhelming majority of this package's traffic
+// has NO wallet configured, and the gateway records a `src` bucket on every
+// ledger row, free-tier included. Routing the no-wallet case straight to
+// globalThis.fetch would have dropped the header from almost every call this
+// package makes — silently, with every other test still green, because nothing
+// else looks at the free path's headers. `npm-client` is a member of the
+// gateway's CLOSED enum: an unrecognised tag reads as silence, not as an error,
+// so this asserts the exact string and not merely that a header is present.
+{
+  _resetBudgetForTests();
+  const seen = [];
+  const prevKey = process.env.DEX_WALLET_KEY;
+  delete process.env.DEX_WALLET_KEY; // no wallet: the free path
+  globalThis.fetch = async (url, init) => {
+    seen.push(new Headers(init && init.headers).get('x-402-source'));
+    return res200();
+  };
+  const r = await fetchMaybePaid('https://example.invalid/scan', { headers: { accept: 'application/json' } });
+  check('free path (no wallet) still sends x-402-source: npm-client', seen[0] === 'npm-client', String(seen[0]));
+  check('free path is not reported as paid', r.paid === false);
+  process.env.DEX_WALLET_KEY = prevKey;
+}
+
+// Case 6: a 402 with no wallet is explained, not costed.
+{
+  _resetBudgetForTests();
+  const prevKey = process.env.DEX_WALLET_KEY;
+  delete process.env.DEX_WALLET_KEY;
+  globalThis.fetch = async () => res402(challenge(50000));
+  const r = await fetchMaybePaid('https://example.invalid/scan', {});
+  check('no wallet: refusal names the missing wallet', r.reason === 'no wallet configured', String(r.reason));
+  process.env.DEX_WALLET_KEY = prevKey;
+}
+
+// Case 7: the paid path still tags npm-client after the extraction.
+{
+  _resetBudgetForTests();
+  const seen = [];
+  globalThis.fetch = async (url, init) => {
+    seen.push(new Headers(init && init.headers).get('x-402-source'));
+    return res402(challenge(50000));
+  };
+  _setPayFetchForTests(async (url, init) => {
+    seen.push(new Headers(init && init.headers).get('x-402-source'));
+    return res200();
+  });
+  await fetchMaybePaid('https://example.invalid/scan', {});
+  check('paid path tags npm-client on the probe', seen[0] === 'npm-client', String(seen[0]));
+  check('paid path tags npm-client on the paid retry', seen[1] === 'npm-client', String(seen[1]));
+}
+
+// Case 8: the over-ceiling refusal still names OUR environment variable.
+// The library says "maxPriceUsd"; a user configuring an MCP client sets
+// DEX_MAX_PRICE_USD, and an error that names the wrong thing is not actionable.
+{
+  _resetBudgetForTests();
+  globalThis.fetch = async () => res402(challenge(60000));
+  _setPayFetchForTests(async () => res200());
+  const r = await fetchMaybePaid('https://example.invalid/scan', {});
+  check('refusal names DEX_MAX_PRICE_USD, not the library option name',
+    /DEX_MAX_PRICE_USD/.test(r.reason || '') && !/maxPriceUsd/.test(r.reason || ''), String(r.reason));
+}
+
+// Case 9: get_spend_budget's output shape is unchanged by the extraction.
+// It is a tool contract: any client already parsing it must keep working.
+{
+  _resetBudgetForTests();
+  const keys = Object.keys(budget()).sort().join(',');
+  check('budget() still returns the 1.6.1 field set',
+    keys === 'calls,maxCalls,maxPricePerCallUsd,maxSpendUsd,remainingUsd,spentUsd', keys);
 }
 
 console.log(failures ? `\n${failures} budget check(s) FAILED` : '\nall budget checks passed');

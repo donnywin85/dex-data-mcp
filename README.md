@@ -203,8 +203,14 @@ keeps working unchanged.
   the process), `DEX_MAX_PRICE_USD` (default $0.05 for any single call) and
   `DEX_MAX_CALLS` (default 200). Hitting any one stops payment and returns a plain
   explanation rather than continuing to spend. The asking price is read from the
-  402 challenge and refused **before** paying if it exceeds the ceiling.
+  402 challenge and refused **before** paying if it exceeds the ceiling. A cap
+  that cannot be parsed (`DEX_MAX_SPEND_USD=1,00`) now refuses to start rather
+  than silently evaluating to `NaN`, which switched every cap off.
 - `get_spend_budget` reports what this session has spent and the caps in force.
+- Since 1.7.0 the caps, the integer accounting and the receipts log live in
+  [`x402-budget`](packages/x402-budget), a standalone package in this repo that
+  holds no wallet. `pay.mjs` is the adapter that reads the `DEX_*` variables and
+  supplies the signing function. Behaviour is unchanged.
 
 Without a wallet, `get_dex_spread` returns the price, the two env var names, the
 shape of the value and the free alternatives — never a stack trace, and never a

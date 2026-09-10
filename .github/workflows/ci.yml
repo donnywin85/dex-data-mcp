@@ -27,6 +27,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      # ★ 1.7.0 made this repo a workspace: pay.mjs imports `x402-budget` from
+      #   packages/x402-budget rather than carrying its own copy of the spend
+      #   caps. Without the symlink that import fails and the stdio test below
+      #   cannot even start the server.
+      #
+      #   --omit=optional keeps the promise at the top of this file: the x402
+      #   client packages are optionalDependencies, so omitting them leaves
+      #   nothing to fetch and the whole install resolves from disk. Measured
+      #   with --offline on 2026-09-10: 1 package, 0.8s, no registry contact.
+      - name: link the workspace (no registry contact)
+        run: npm install --omit=optional --no-audit --no-fund --no-package-lock
+
       - name: syntax check (every tracked .js/.cjs/.mjs)
         run: |
           set -euo pipefail
@@ -100,3 +113,16 @@ jobs:
 
       - name: argument validation over real stdio JSON-RPC (no network)
         run: node test/arg-validation.test.mjs
+
+      # ★ THESE EXISTED AND NOTHING RAN THEM. test/budget.test.mjs was written
+      #   on 2026-09-09 to pin the fail-closed spend caps and was never wired
+      #   into any workflow, so the caps were only as good as whoever remembered
+      #   to run the file by hand. A test nobody runs is documentation.
+      #
+      #   Both suites are offline by construction — they inject a fake payer and
+      #   never touch a wallet, a key or a network.
+      - name: spend caps still fail closed (dex-data-mcp adapter)
+        run: node test/budget.test.mjs
+
+      - name: spend caps and receipts (x402-budget library)
+        run: node packages/x402-budget/test/budget.test.mjs

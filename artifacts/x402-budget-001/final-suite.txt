@@ -1,0 +1,29 @@
+=== node --check every .mjs/.js/.cjs (tracked + new) ===
+ok
+
+=== x402-budget library suite ===
+  PASS  the library source references no private-key material
+
+all budget checks passed
+EXIT=0
+
+=== dex-data-mcp budget suite ===
+  PASS  budget() still returns the 1.6.1 field set  — calls,maxCalls,maxPricePerCallUsd,maxSpendUsd,remainingUsd,spentUsd
+
+all budget checks passed
+EXIT=0
+
+=== dex-data-mcp arg-validation (real stdio) ===
+  PASS  an unknown tool is rejected
+
+all argument-validation checks pass
+EXIT=0
+
+=== check-coverage ===
+
+✅ every sold product is covered or explicitly exempt
+EXIT=0
+
+=== MCP smoke test (publish.yml's, verbatim) ===
+OK: dex-data v1.7.0, 23 tools
+smoke EXIT=0

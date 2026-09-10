@@ -1,0 +1,40 @@
+=== [1/6] syntax check (every tracked .js/.cjs/.mjs) ===
+checked 5 tracked file(s)
+  (packages/ is untracked until commit; checking it explicitly:)
+  ok packages/x402-budget/src/index.mjs
+  ok packages/x402-budget/test/budget.test.mjs
+
+=== [2/6] mcpName matches canonical namespace ===
+OK mcpName: com.donnyautomation/dex-data
+
+=== [3/6] all four version sites agree ===
+OK: all four report 1.7.0
+
+=== [4/6] server.json description fits the MCP registry 100-char limit ===
+88 chars
+
+=== [5/6] argument validation over real stdio JSON-RPC (no network) ===
+  PASS  initialize returns server info  — {"name":"dex-data","version":"1.7.0"}
+  PASS  every tool has a description and an input schema  — 23 tools
+  PASS  a missing required argument is blocked, not sent as undefined
+  PASS  an EMPTY required argument is blocked too
+  PASS  a partially-supplied requirement names the missing one
+  PASS  lookup_lei with neither q nor lei is blocked
+  PASS  lookup_lei with an empty q is blocked
+  PASS  lookup_lei WITH a name passes validation
+  PASS  get_slippage without a trade size is blocked
+  PASS  get_slippage with amountUsd passes validation
+  PASS  get_slippage with amountIn passes validation
+  PASS  get_random with no arguments still passes validation
+  PASS  find_arbitrage with no arguments still passes validation
+  PASS  get_gas with no arguments still passes validation
+  PASS  get_treasury_yield_curve with no arguments still passes validation
+  PASS  list_chains answers locally
+  PASS  an unknown tool is rejected
+
+all argument-validation checks pass
+arg-validation EXIT=0
+
+=== [6/6] budget suite ===
+dex-data-mcp budget EXIT=0
+x402-budget EXIT=0

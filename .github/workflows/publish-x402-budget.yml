@@ -1,0 +1,111 @@
+# publish-x402-budget.yml — publish packages/x402-budget to npm from CI, so the
+# token never needs to reach a laptop. Mirrors publish.yml, which does the same
+# job for the dex-data-mcp server at the repo root.
+#
+# WHY A SECOND WORKFLOW RATHER THAN A MATRIX: the two artifacts release on
+# independent clocks. dex-data-mcp is pinned at 1.6.1 for the duration of the
+# MCP-distribution experiment; x402-budget has no such window and should be able
+# to ship a patch without touching the thing being measured. A shared workflow
+# would couple them at exactly the point where they must stay separate.
+#
+# ★ TAG NAMESPACE. This fires on `x402-budget-v*`, NOT on `v*`. publish.yml owns
+#   `v*`, and a shared prefix would make every server release also try to publish
+#   the library (and vice versa) — the second job failing on an already-published
+#   version, or worse, succeeding with the wrong contents.
+
+name: publish-x402-budget
+
+on:
+  push:
+    tags: ['x402-budget-v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write        # npm Trusted Publishing (OIDC) + provenance
+
+defaults:
+  run:
+    working-directory: packages/x402-budget
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # MUST come after setup-node: setup-node installs its own bundled npm and
+      # would overwrite an earlier upgrade. Trusted Publishing needs npm >= 11.5.
+      - name: Upgrade npm for Trusted Publishing (OIDC)
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      # The library is dependency-free on purpose — it holds no wallet and needs
+      # no x402 package to decide whether a call is affordable — so there is
+      # nothing to install and the test suite touches no network.
+      - name: Syntax check
+        run: |
+          node --check src/index.mjs
+          node --check test/budget.test.mjs
+
+      - name: Spend caps and receipts test suite
+        run: node test/budget.test.mjs
+
+      # ★ A tag is a claim about a version, and an immutable publish is the wrong
+      #   place to discover the two disagree. Pushing x402-budget-v0.1.0 while
+      #   package.json says 0.1.1 would put 0.1.1 on npm under a tag naming
+      #   0.1.0, and npm versions cannot be re-cut.
+      - name: Tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/x402-budget-v}"
+          PKG=$(node -p "require('./package.json').version")
+          [ "$TAG" = "$PKG" ] || { echo "::error::tag says $TAG, package.json says $PKG"; exit 1; }
+          echo "OK: tag and package.json both say $PKG"
+
+      # ★ The `files` whitelist is the only thing standing between a local test
+      #   fixture and the public registry. Assert the tarball carries exactly the
+      #   source, the licence and the README — and no test directory, which is
+      #   where a throwaway key would live if one ever existed.
+      - name: Tarball carries only what it should
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > /tmp/pack.json
+          node -e '
+            const files = require("/tmp/pack.json")[0].files.map(f => f.path).sort();
+            console.log(files.join("\n"));
+            const stray = files.filter(f => /^test\//.test(f) || /\.env/.test(f));
+            if (stray.length) { console.error("::error::tarball contains " + stray.join(", ")); process.exit(1); }
+            if (!files.includes("src/index.mjs")) { console.error("::error::tarball is missing src/index.mjs"); process.exit(1); }
+            if (!files.includes("LICENSE")) { console.error("::error::tarball is missing LICENSE"); process.exit(1); }
+            console.log("OK: " + files.length + " files, no tests, no env");
+          '
+
+      - name: Pack (dry run)
+        if: inputs.dry_run
+        run: npm pack --dry-run
+
+      # Trusted Publishing (OIDC): no NPM_TOKEN at all — npm verifies the
+      # workflow identity directly, which also gets provenance for free.
+      #
+      # ⚠ THIS REQUIRES A ONE-TIME MANUAL STEP BEFORE IT CAN EVER GO GREEN:
+      #   `x402-budget` must be registered on npmjs.com as a trusted publisher
+      #   for donnywin85/dex-data-mcp -> .github/workflows/publish-x402-budget.yml.
+      #   Until that exists, this step fails on auth — which is the correct
+      #   failure, not something to work around with a token on disk.
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        run: npm publish --access public

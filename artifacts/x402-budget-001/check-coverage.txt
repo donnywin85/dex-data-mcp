@@ -1,0 +1,11 @@
+gateway sells 27 product families; this server covers 21
+
+  known uncovered (6) — listed in EXEMPT, not silently dropped:
+    /company           shipped on the gateway after 1.6.0; held by the cycle-3 hold-still (verdict 2026-09-27T08:54:50.647Z). No tool while the window is open. UNCOVERED on npm until then.
+    /edgar/events      subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.
+    /edgar/filings     subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.
+    /edgar/insiders    subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.
+    /sanctions         UNCOVERED on npm — tool exists only in agent-utils-mcp, which is not published (404, 2026-08-25). Deferred, not solved: no product may be added during the x402-p1p2p3 cycle. Revisit 2026-09-15.
+    /v4hooks           one-off research product, not part of the general catalogue
+
+✅ every sold product is covered or explicitly exempt
