@@ -1,0 +1,43 @@
+{
+  "ts": "2026-09-10T16:42:34.029Z",
+  "probes": [
+    {
+      "path": "/settings",
+      "status": 200,
+      "finalUrl": "https://www.npmjs.com/package/settings",
+      "isLoginForm": false,
+      "len": 63215
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "finalUrl": "https://www.npmjs.com/login",
+      "isLoginForm": true,
+      "len": 26508
+    },
+    {
+      "path": "/org",
+      "status": 200,
+      "finalUrl": "https://www.npmjs.com/package/org",
+      "isLoginForm": false,
+      "len": 62041
+    },
+    {
+      "path": "/settings/profile",
+      "status": 404,
+      "finalUrl": "https://www.npmjs.com/settings/profile",
+      "isLoginForm": false,
+      "len": 30410
+    }
+  ],
+  "context": {
+    "found": true,
+    "hasUser": false,
+    "userName": null
+  },
+  "cookieNames": [
+    "ISCHECKURLRISK",
+    "__cf_bm",
+    "_cfuvid"
+  ]
+}

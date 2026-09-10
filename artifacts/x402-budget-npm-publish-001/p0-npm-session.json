@@ -1,0 +1,19 @@
+{
+  "lockId": "33084-d76121d2",
+  "ts": "2026-09-10T16:42:07.121Z",
+  "url": "https://www.npmjs.com/",
+  "dom": {
+    "avatarHref": null,
+    "hasSignInLink": true,
+    "hasPasswordInput": false
+  },
+  "authGated": {
+    "status": 404,
+    "finalUrl": "https://www.npmjs.com/settings/profile",
+    "redirectedToLogin": false,
+    "mentionsTwoFactor": true,
+    "hasEmailField": false,
+    "len": 30410
+  },
+  "verdict": "signed-out"
+}

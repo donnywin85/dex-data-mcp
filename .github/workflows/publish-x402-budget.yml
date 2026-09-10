@@ -98,14 +98,40 @@ jobs:
         if: inputs.dry_run
         run: npm pack --dry-run
 
-      # Trusted Publishing (OIDC): no NPM_TOKEN at all — npm verifies the
-      # workflow identity directly, which also gets provenance for free.
+      # ── FIRST-PUBLISH BOOTSTRAP, and why it is here ──────────────────────
+      # Trusted Publishing (OIDC) is the destination: npm verifies the workflow
+      # identity directly and provenance comes for free, with no credential in
+      # the path. It cannot carry the FIRST publish. A trusted publisher is
+      # configured at npmjs.com > <package> > Settings, and that page does not
+      # exist until the package does — npm/cli#8544 ("Allow publishing initial
+      # version with OIDC") was still OPEN when this ran, re-checked against the
+      # GitHub API rather than assumed. PyPI allows pre-registration; npm does
+      # not. So version 0.1.0 authenticates with the repository's existing
+      # NPM_TOKEN secret and every version after it uses OIDC.
       #
-      # ⚠ THIS REQUIRES A ONE-TIME MANUAL STEP BEFORE IT CAN EVER GO GREEN:
-      #   `x402-budget` must be registered on npmjs.com as a trusted publisher
-      #   for donnywin85/dex-data-mcp -> .github/workflows/publish-x402-budget.yml.
-      #   Until that exists, this step fails on auth — which is the correct
-      #   failure, not something to work around with a token on disk.
+      # The token is a REPOSITORY SECRET. It is never on the laptop, never in a
+      # shell, never in a log — GitHub injects it into this step and masks it.
+      # That is the whole reason the first publish happens in CI rather than at
+      # a keyboard.
+      #
+      # ⚠ REMOVE THE `env:` BLOCK BELOW once the trusted publisher is registered
+      #   (donnywin85/dex-data-mcp -> publish-x402-budget.yml). Leaving it means
+      #   a credential stays on the release path that OIDC has already replaced.
+      #   The auth probe above it is what proves which of the two actually ran.
+
+      # A dead token must fail BEFORE the irreversible step, not during it.
+      # `npm whoami` is a positive probe: it returns a username or it exits
+      # non-zero. A username is an identity, not a secret.
+      - name: Auth probe (fail before publishing, not during)
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "authenticated to npm as: $(npm whoami)"
+
       - name: Publish
         if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
