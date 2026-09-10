@@ -85,7 +85,20 @@ jobs:
           set -euo pipefail
           npm pack --dry-run --json > /tmp/pack.json
           node -e '
-            const files = require("/tmp/pack.json")[0].files.map(f => f.path).sort();
+            // ★ npm 12.0.2 changed this payload from an ARRAY of packages to an
+            //   OBJECT keyed by package name, so the old `[0]` read undefined and
+            //   the guard died on a TypeError instead of checking the tarball.
+            //   Because `npm install -g npm@latest` above floats, this broke on
+            //   npm 12s release day without a line of this repo changing. Accept
+            //   either shape, and fail loudly if it is neither — a guard that
+            //   crashes is indistinguishable from a guard that passed.
+            const raw = require("/tmp/pack.json");
+            const entries = Array.isArray(raw) ? raw : Object.values(raw);
+            if (!entries.length || !entries[0] || !Array.isArray(entries[0].files)) {
+              console.error("::error::npm pack --json shape not recognised: " + JSON.stringify(raw).slice(0, 300));
+              process.exit(1);
+            }
+            const files = entries[0].files.map(f => f.path).sort();
             console.log(files.join("\n"));
             const stray = files.filter(f => /^test\//.test(f) || /\.env/.test(f));
             if (stray.length) { console.error("::error::tarball contains " + stray.join(", ")); process.exit(1); }

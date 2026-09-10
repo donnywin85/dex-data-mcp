@@ -1,0 +1,10 @@
+PASS  npm 11 ARRAY  (real shape)     -> ok=true (4 files, no tests, no env)
+PASS  npm 12 OBJECT (real shape)     -> ok=true (4 files, no tests, no env)
+PASS  NEGATIVE: test fixture leaks   -> ok=false (tarball contains test/budget.test.mjs)
+PASS  NEGATIVE: .env leaks           -> ok=false (tarball contains .env)
+PASS  NEGATIVE: missing src/index.mjs -> ok=false (missing src/index.mjs)
+PASS  NEGATIVE: missing LICENSE      -> ok=false (missing LICENSE)
+PASS  NEGATIVE: empty payload        -> ok=false (shape not recognised)
+PASS  NEGATIVE: unknown shape        -> ok=false (shape not recognised)
+
+all 8 cases behaved as specified (2 positive, 6 negative)
