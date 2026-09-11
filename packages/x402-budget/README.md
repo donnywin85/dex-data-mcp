@@ -6,12 +6,10 @@ Three limits that fail closed, an integer running total, and an append-only log
 of what was actually bought. **It holds no wallet** — you supply the function
 that signs, so this package can never move money on its own.
 
-> **Not on npm yet.** `npm view x402-budget` 404s as of 2026-09-10. Publishing
-> is gated on registering a trusted publisher for
-> `.github/workflows/publish-x402-budget.yml`. Until then, use it from a clone:
+> **On npm as [`x402-budget`](https://www.npmjs.com/package/x402-budget), version
+> 0.1.0.** Install it with `npm install x402-budget`. The source lives at
 > `packages/x402-budget` in
-> [donnywin85/dex-data-mcp](https://github.com/donnywin85/dex-data-mcp). The
-> install line will appear here when the command actually works.
+> [donnywin85/dex-data-mcp](https://github.com/donnywin85/dex-data-mcp).
 
 ## Why
 
