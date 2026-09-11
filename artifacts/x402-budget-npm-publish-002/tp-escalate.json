@@ -1,0 +1,24 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=32728-94b935bd)
+{
+  "url": "https://www.npmjs.com/package/x402-budget/access",
+  "title": "npm | Security Key",
+  "text": "⚠️\n\nnpm tokens that bypass 2FA are being restricted — account changes (Aug 2026) and direct publishing (Jan 2027). Learn how to prepare →\n\n×\nTwo-Factor Authentication\nSecurity key\n\nClick the button below when you are ready to authenticate.\n\nUse security key\n\nUnable to verify with your security key?\n\nUse password",
+  "links": [
+    {
+      "text": "Learn how to prepare →",
+      "href": "https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/"
+    },
+    {
+      "text": "",
+      "href": "/"
+    }
+  ],
+  "buttons": [
+    "×",
+    "Use security key",
+    "Use password"
+  ],
+  "forms": [],
+  "platformAuthenticator": "platform authenticator AVAILABLE (Windows Hello)"
+}
+[chrome-mutex:9222] Released lock (id=32728-94b935bd)

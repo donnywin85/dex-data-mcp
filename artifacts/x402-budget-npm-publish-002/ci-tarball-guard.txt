@@ -1,0 +1,8 @@
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.3919887Z ^[[36;1m  if (!files.includes("src/index.mjs")) { console.error("::error::tarball is missing src/index.mjs"); process.exit(1); }^[[0m
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.3920669Z ^[[36;1m  if (!files.includes("LICENSE")) { console.error("::error::tarball is missing LICENSE"); process.exit(1); }^[[0m
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.3921686Z ^[[36;1m  console.log("OK: " + files.length + " files, no tests, no env");^[[0m
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.8853800Z LICENSE
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.8854627Z README.md
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.8855011Z package.json
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.8855632Z src/index.mjs
+publish | Tarball carries only what it should | 2026-09-11T01:42:33.8856535Z OK: 4 files, no tests, no env

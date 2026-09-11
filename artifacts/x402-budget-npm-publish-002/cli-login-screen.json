@@ -1,0 +1,27 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=37300-0f7f35b0)
+{
+  "at": "2026-09-11T01:27:34.732Z",
+  "requested": "https://www.npmjs.com/login?next=/login/cli/2eb3f41a-d9de-49d5-a7d2-606af510c008",
+  "clicked": null,
+  "stop": "credential screen — page text asks for a one-time code",
+  "before": {
+    "url": "https://www.npmjs.com/escalate/webauthn?next=%2Flogin%2Fcli%2F2eb3f41a-d9de-49d5-a7d2-606af510c008",
+    "title": "npm | Security Key",
+    "text": "⚠️\n\nnpm tokens that bypass 2FA are being restricted — account changes (Aug 2026) and direct publishing (Jan 2027). Learn how to prepare →\n\n×\nTwo-Factor Authentication\nAuthenticating as  donnywin85.Use a different account.\nSecurity key\n\nClick the button below when you are ready to authenticate.\n\nUse security key",
+    "inputs": [],
+    "buttons": [
+      {
+        "text": "×",
+        "tag": "button",
+        "type": null
+      },
+      {
+        "text": "Use security key",
+        "tag": "button",
+        "type": null
+      }
+    ],
+    "avatar": null
+  }
+}
+[chrome-mutex:9222] Released lock (id=37300-0f7f35b0)

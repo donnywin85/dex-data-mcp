@@ -1,0 +1,58 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=26172-a899fcc5)
+{
+  "widgets": [
+    {
+      "tag": "input",
+      "id": null,
+      "cls": "_390acbc5 f5 fw3 black relative",
+      "role": "combobox",
+      "ariaLabel": "Search packages",
+      "ariaHasPopup": null,
+      "ariaExpanded": "false",
+      "text": ""
+    },
+    {
+      "tag": "summary",
+      "id": null,
+      "cls": "ButtonBase-sc-107cqdy-0 Button-sc-1uybz61-0 dLELrw cIbzcZ b22ae0f7",
+      "role": null,
+      "ariaLabel": null,
+      "ariaHasPopup": "menu",
+      "ariaExpanded": null,
+      "text": "No access"
+    },
+    {
+      "tag": "summary",
+      "id": null,
+      "cls": "ButtonBase-sc-107cqdy-0 Button-sc-1uybz61-0 dLELrw cIbzcZ afd4bbe3",
+      "role": null,
+      "ariaLabel": "Expiration Date : 30 days",
+      "ariaHasPopup": "menu",
+      "ariaExpanded": null,
+      "text": "30 days"
+    }
+  ],
+  "heads": [
+    {
+      "head": "Organizations",
+      "parentHTML": "<div class=\"b844f982 f4 fw4 db relative black-70 mb1 ma0\"><h3 id=\"organizationsHeader\">Organizations</h3><a href=\"/org/create\" class=\"_55741ad1 f4 fw6 link tc\"><span aria-hidden=\"true\">+</span><span class=\"_2c65004c\">Create New Organization</span></a></div>"
+    },
+    {
+      "head": "Packages and scopes",
+      "parentHTML": "<div class=\"_92d0cd78\"><h2 id=\"create-gat_packages_section\" class=\"ed3e8d85 f3 fw6\">Packages and scopes</h2><div class=\"c6193a57 a8a801d5 mb3 mt1\"></div><fieldset class=\"c06d978f\"><legend id=\"create-gat_packages_section_legend\" class=\"d90b31d6\">Packages and scopes permission</legend><div class=\"cf2077c3 pb2\"><p id=\"create-gat_packagesAndScopesPermission_label\" class=\"_64c2ccaf db mt1 f5 fw6 black-90 nowrap\">Permissions</p><div role=\"radiogroup\" tabindex=\"-1\" aria-labelledby=\"create-gat_packages_section create-gat_packagesAndScopesPermission_label\" aria-invalid=\"false\" aria-describedby=\"create-gat_packages_section_error_message\"><div class=\"_62229eaa flex items-baseline mv1\"><input type=\"radi"
+    },
+    {
+      "head": "Organizations",
+      "parentHTML": "<div class=\"_92d0cd78\"><h2 id=\"create-gat_organizations_section\" class=\"ed3e8d85 f3 fw6\">Organizations</h2><div class=\"c6193a57 a8a801d5 mb3 mt1\"></div><div class=\"cf2077c3 pb2\"><p id=\"create-gat_orgsPermission_label\" class=\"_64c2ccaf db mt1 f5 fw6 black-90 nowrap\">Permissions</p><details class=\"SelectMenu__StyledSelectMenu-sc-v4n0s6-0 dQWeVk\"><summary aria-labelledby=\"create-gat_organizations_section create-gat_orgsPermission_label\" aria-invalid=\"false\" aria-haspopup=\"menu\" class=\"ButtonBase-sc-107cqdy-0 Button-sc-1uybz61-0 dLELrw cIbzcZ b22ae0f7\">No access<!-- --> <span class=\"ml2\"><svg viewBox=\"0 0 11.64 5.82\" height=\"6px\" fill=\"#666\" aria-hidden=\"true\"><g id=\"6a308a62-c62e-4b78-87b6-759d"
+    },
+    {
+      "head": "Expiration",
+      "parentHTML": "<div class=\"_92d0cd78\"><h2 class=\"ed3e8d85 f3 fw6\">Expiration</h2><div class=\"c6193a57 a8a801d5 mb3 mt1\"></div><div class=\"a7d66c4e mb3\"><label id=\"create-gat_expiration_section\" class=\"aabdbc9e b8a95f67 db mb1 f5 fw6 black-90 nowrap mb3\">Expiration Date</label><div class=\"flex\"><div class=\"f216ea4e dib pr2 pb2\"><details class=\"SelectMenu__StyledSelectMenu-sc-v4n0s6-0 dQWeVk\"><summary aria-labelledby=\"create-gat_expiration_section\" aria-haspopup=\"menu\" class=\"ButtonBase-sc-107cqdy-0 Button-sc-1uybz61-0 dLELrw cIbzcZ afd4bbe3\" aria-controls=\"expiration-days-menu\" aria-label=\"Expiration Date : 30 days\">30 days<!-- --> <span class=\"ml2\"><svg viewBox=\"0 0 11.64 5.82\" height=\"6px\" fill=\"#666\" ari"
+    },
+    {
+      "head": "Expiration Date",
+      "parentHTML": "<div class=\"a7d66c4e mb3\"><label id=\"create-gat_expiration_section\" class=\"aabdbc9e b8a95f67 db mb1 f5 fw6 black-90 nowrap mb3\">Expiration Date</label><div class=\"flex\"><div class=\"f216ea4e dib pr2 pb2\"><details class=\"SelectMenu__StyledSelectMenu-sc-v4n0s6-0 dQWeVk\"><summary aria-labelledby=\"create-gat_expiration_section\" aria-haspopup=\"menu\" class=\"ButtonBase-sc-107cqdy-0 Button-sc-1uybz61-0 dLELrw cIbzcZ afd4bbe3\" aria-controls=\"expiration-days-menu\" aria-label=\"Expiration Date : 30 days\">30 days<!-- --> <span class=\"ml2\"><svg viewBox=\"0 0 11.64 5.82\" height=\"6px\" fill=\"#666\" aria-hidden=\"true\"><g id=\"6a308a62-c62e-4b78-87b6-759dd1ef54e5\"><polygon points=\"10 0 5 5 0 0 10 0\"></polygon></g>"
+    }
+  ]
+}
+[chrome-mutex:9222] Released lock (id=26172-a899fcc5)
