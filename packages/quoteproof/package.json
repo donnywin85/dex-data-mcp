@@ -1,0 +1,70 @@
+{
+  "name": "quoteproof",
+  "version": "0.1.0",
+  "description": "Keyless, block-pinned, fee-aware quotes and hook proofs for the tokenized-stock pools on Robinhood Chain (4663), plus an on-chain QuoteRegistry to anchor what was served. Reads only. No routing, execution, custody or advice.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "quoteproof-mcp": "dist/server.js",
+    "quoteproof": "dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "contracts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "compile:contract": "node scripts/compile.mjs",
+    "test": "node --test test/*.test.ts test/*.test.mjs",
+    "test:live": "QUOTEPROOF_LIVE=1 node --test test/live.smoke.test.ts",
+    "record-fixtures": "node scripts/record-fixtures.ts",
+    "deploy:4663": "node scripts/deploy-4663.mjs"
+  },
+  "keywords": [
+    "robinhood-chain",
+    "tokenized-stocks",
+    "rwa",
+    "uniswap-v3",
+    "uniswap-v4",
+    "quote",
+    "liquidity-depth",
+    "hooks",
+    "mcp",
+    "model-context-protocol",
+    "arbitrum-orbit"
+  ],
+  "author": "donnyautomation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/donnywin85/dex-data-mcp.git",
+    "directory": "packages/quoteproof"
+  },
+  "bugs": {
+    "url": "https://github.com/donnywin85/dex-data-mcp/issues"
+  },
+  "devDependencies": {
+    "@ethereumjs/common": "10.1.3",
+    "@ethereumjs/evm": "10.1.3",
+    "@ethereumjs/tx": "10.1.3",
+    "@ethereumjs/util": "10.1.3",
+    "@ethereumjs/vm": "10.1.3",
+    "@types/node": "^22.18.0",
+    "solc": "0.8.26",
+    "typescript": "~5.9.2"
+  }
+}

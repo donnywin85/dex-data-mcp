@@ -1,0 +1,3 @@
+# LF everywhere: the Solidity source hash is embedded in the bytecode metadata, so a CRLF checkout
+# would compile to different bytecode and the deploy script would refuse the committed build as stale.
+* text=auto eol=lf
