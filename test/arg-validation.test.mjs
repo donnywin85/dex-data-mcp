@@ -12,17 +12,48 @@
 // that puts the cost of someone else's bug on us, and a model-driven client
 // dropping an argument is the ordinary case rather than the exotic one.
 //
-// No network: every assertion here is about calls that must NOT be made, so a
-// blocked call proves itself by never reaching the gateway. The tools that are
-// expected to pass validation are checked by their ERROR TEXT, not by a
-// successful fetch, so this suite cannot go red because a free tier is spent
-// or an upstream is slow.
+// No network beyond loopback: a blocked call proves itself by never reaching
+// the replay server, and a call that passes validation reaches a RECORDED 402
+// rather than production. This file used to say "no network" while calling the
+// live gateway; see the replay block below for what that cost.
 
 import { spawn } from 'node:child_process';
+import http from 'node:http';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+// ★ THIS SUITE USED TO CALL THE LIVE GATEWAY, AND ITS HEADER SAID IT DID NOT.
+//
+//   The claim was "no network: every assertion here is about calls that must NOT
+//   be made". True of the blocked cases. But the cases asserting that a call
+//   PASSES validation pass it all the way through to fetch, and those went to
+//   production: five local runs of this file put 25 rows in the live ledger,
+//   every one tagged `src: npm-client` and `client: dex-data-mcp`.
+//
+//   Two costs, and the second is the serious one. It spends the 25-a-day free
+//   tier this package promises its users. And `npm-client` is the bucket a live
+//   experiment uses to count arrivals through this package — so the test suite
+//   was writing into the very instrument that measures the thing it tests. Our
+//   own fleet's calls are never demand, and a sensor that cannot tell them apart
+//   is worse than no sensor.
+//
+//   So the suite now runs against a loopback replay of the recorded challenge.
+//   The assertions are unchanged: a paywall reply is not the blocked marker
+//   either, so "passes validation" still means exactly what it meant.
+const fixture = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/fixtures/challenge-402.json'), 'utf8'));
+const replayHits = [];
+const replay = http.createServer((req, res) => {
+  replayHits.push(new URL(req.url, 'http://127.0.0.1').pathname);
+  const rec = fixture.routes[new URL(req.url, 'http://127.0.0.1').pathname];
+  if (!rec) { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{}'); return; }
+  res.writeHead(rec.status, rec.headers);
+  res.end(rec.body);
+});
+await new Promise((r) => replay.listen(0, '127.0.0.1', r));
+const REPLAY_BASE = `http://127.0.0.1:${replay.address().port}`;
 
 let failures = 0;
 const check = (name, pass, detail = '') => {
@@ -30,7 +61,10 @@ const check = (name, pass, detail = '') => {
   if (!pass) failures += 1;
 };
 
-const child = spawn(process.execPath, ['server.mjs'], { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] });
+const childEnv = { ...process.env, X402_BASE: REPLAY_BASE };
+delete childEnv.DEX_WALLET_KEY;
+delete childEnv.EVM_PRIVATE_KEY;
+const child = spawn(process.execPath, ['server.mjs'], { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'], env: childEnv });
 let buf = '';
 const pending = new Map();
 child.stdout.on('data', (d) => {
@@ -161,6 +195,19 @@ const unpriced = tools.filter((t) => t.name !== 'get_spend_budget' && !/\$\d+\.\
 check('every route tool states its price in USDC', unpriced.length === 0,
   unpriced.map((t) => t.name).join(', ') || 'all 12 priced');
 
+// ★ POSITIVE PROOF THAT THE REDIRECTION WORKED. [positive-probe]
+//
+//   Every assertion above is satisfied by an error string, so all of them would
+//   still pass if X402_BASE were ignored and the calls went back to production —
+//   which is the failure being fixed, and it would be invisible. Five cases here
+//   pass validation and therefore fetch. Assert that five requests arrived HERE.
+const EXPECTED_FETCHES = ['/lei', '/edgar/events', '/polygon/scan', '/avalanche/scan', '/treasury'];
+check('every validating call went to the loopback replay, not the gateway',
+  replayHits.length === EXPECTED_FETCHES.length
+  && EXPECTED_FETCHES.every((p) => replayHits.includes(p)),
+  `${replayHits.length} request(s): ${replayHits.join(', ')}`);
+
 child.kill('SIGTERM');
+replay.close();
 console.log(failures ? `\n${failures} argument-validation check(s) FAILED` : '\nall argument-validation checks pass');
 process.exit(failures ? 1 : 0);
