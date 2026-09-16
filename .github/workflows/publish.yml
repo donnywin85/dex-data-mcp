@@ -119,7 +119,7 @@ jobs:
               //   A floor was right while the catalogue only ever grew: it caught a
               //   release that silently dropped tools, and it was raised by hand as
               //   tools were added. 1.7.0 makes a different claim — that the tool
-              //   list IS the gateway's listed catalogue, 12 routes plus one local
+              //   list IS the listed catalogue of the gateway, 12 routes plus one local
               //   tool — and a floor cannot catch the way that claim breaks. A tool
               //   added back for an unlisted route passes any floor while making the
               //   statement false. scripts/check-coverage.mjs above proves these 13
@@ -128,8 +128,8 @@ jobs:
               const EXPECTED = 13;
               if (tools.length !== EXPECTED) {
                 console.error(`expected exactly ${EXPECTED} tools, got ${tools.length}: ${tools.map(t => t.name).join(", ")}`);
-                console.error("If the storefront's listed catalogue really changed, change this number");
-                console.error("and check-coverage's expectations together — never this one alone.");
+                console.error("If the listed catalogue really changed, change this number and the");
+                console.error("expectations in check-coverage together — never this one alone.");
                 process.exit(1);
               }
               console.log(`OK: ${init.result.serverInfo.name} v${init.result.serverInfo.version}, ${tools.length} tools`);

@@ -98,6 +98,14 @@ jobs:
             }
           '
 
+      # ★ The release gates are inline `node -e '...'` scripts, and bash ends one
+      #   at the first apostrophe. A comment reading "the gateway's catalogue"
+      #   truncated the smoke test and it failed on a PUSHED TAG, with the version
+      #   already spent. The YAML was valid and the node source read as valid; the
+      #   defect lived only in the string bash builds. Build it here and parse it.
+      - name: inline node -e blocks in the workflows still parse
+        run: node scripts/check-workflow-quoting.mjs
+
       - name: argument validation over real stdio JSON-RPC (no network)
         run: node test/arg-validation.test.mjs
 
