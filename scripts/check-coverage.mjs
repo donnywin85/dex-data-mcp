@@ -1,25 +1,40 @@
-// check-coverage.mjs — does this MCP server expose everything the gateway sells?
+// check-coverage.mjs — does this MCP server expose exactly what the gateway LISTS?
 //
-// MCP is the distribution channel that actually works: ~672 npm downloads a week
-// against essentially zero organic paid API calls. A product that ships on the
-// gateway but never gets an MCP tool is invisible on the only channel with
-// traction, and nothing used to notice — the gateway repo and this one are
-// separate, so no single CI job could see both sides.
+// ★ WHAT THIS GATE COMPARES AGAINST CHANGED IN 1.7.0, AND THAT IS THE POINT.
 //
-// This runs at RELEASE time, not on every commit, and deliberately so: it needs
-// the network, and x402-gateway's CI gates its Railway deploys. A flaky
-// network check there would block shipping the gateway for reasons that have
-// nothing to do with the gateway. Here the worst case is a delayed npm publish.
+//   It used to read every path in the gateway's openapi.json and demand a tool
+//   for each. That was right while the gateway listed everything it served. On
+//   2026-09-16 the storefront was cut to the 12 routes with measured demand or
+//   no substitute, while all 62 priced routes CARRY ON BEING SERVED and payable
+//   (x402-gateway/artifacts/x402-catalogue-focus-001/KEEP.md). Against openapi
+//   the old gate would now demand 50 tools for products the storefront has
+//   deliberately stopped recommending — it would enforce precisely the drift
+//   this release exists to remove.
 //
-//   node scripts/check-coverage.mjs          # fail on an uncovered product
+//   So the authority is now /.well-known/x402, which is the gateway's own
+//   statement of what it lists. openapi.json is still read, but only to prove
+//   each listed route really exists and to quote its price.
+//
+// ★ IT RECONCILES BOTH WAYS. [inventory-reconcile]
+//
+//   listed with no tool   -> FAIL. The front door is missing a room.
+//   tool with no listing  -> FAIL. The tool recommends a route the storefront
+//                            dropped; it still works, but this package should
+//                            not be the thing pointing at it.
+//
+//   One-way checking is how the two repos drifted apart the first time: nothing
+//   could see both sides at once, so "we cover everything" and "we cover only
+//   what is sold" were never the same statement.
+//
+// Runs at RELEASE time, not on every commit: it needs the network, and a flaky
+// network check in the commit path would block work for reasons unrelated to it.
+// Worst case here is a delayed npm publish.
+//
+//   node scripts/check-coverage.mjs          # fail on any mismatch
 //   node scripts/check-coverage.mjs --warn   # report only, never fail
-//
-// Chain-prefixed routes collapse to one family: the gateway sells /price,
-// /base/price, /polygon/price and so on, but a single tool covers them all via
-// its `chain` argument. Comparing raw paths would report 40 phantom gaps.
 
-import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -27,112 +42,90 @@ const ROOT = path.join(__dirname, '..');
 const GATEWAY = (process.env.X402_BASE || 'https://x402.donnyautomation.com').replace(/\/$/, '');
 const WARN_ONLY = process.argv.includes('--warn');
 
-const CHAINS = ['bsc', 'polygon', 'arbitrum', 'base', 'avalanche', 'optimism'];
+// Listed routes with no tool, each with a reason and a condition that ends it.
+// Empty is the correct state, and it is the state 1.7.0 ships in. An entry here
+// is a WAIVER: it re-announces itself on every run, because a silent exemption
+// reads as "covered" when it is not. [loud-waiver]
+const EXEMPT = {};
 
-// Products with no MCP tool, each with a reason. This list is the point of the
-// file: an uncovered product is either a deliberate choice or an oversight, and
-// the difference has to be written down or it decays into "we never noticed".
-//
-// Anything NOT listed here and NOT covered fails the check — so shipping a new
-// gateway product without a tool breaks the next release rather than going
-// unnoticed until someone reads two repos side by side.
-const EXEMPT = {
-  // '/call' was exempt as a "legacy generic proxy" until 2026-08-25, when P1
-  // moved the paid cross-DEX spread tool into this server and gave it a real
-  // tool (get_dex_spread). It is covered now, so the exemption is removed
-  // rather than left to read as a permanent gap.
-  '/v4hooks': 'one-off research product, not part of the general catalogue',
+const timeout = { signal: AbortSignal.timeout(30000) };
 
-  // ⚠ A WAIVER, NOT A PASS — and it re-announces itself every run, because a
-  //   silent exemption reads as "covered" when it is not.
-  //
-  //   '/sanctions' has NO tool here. It has one in the sibling repo
-  //   agent-utils-mcp ('sanctions_screen'), but that package is NOT on npm —
-  //   `npm view agent-utils-mcp version` 404s, measured 2026-08-25. So on the
-  //   npm channel this product is genuinely uncovered, and this entry does not
-  //   pretend otherwise.
-  //
-  //   It is NOT closed here because this repo is mid-way through the
-  //   pre-registered x402-p1p2p3 cycle (t0 2026-08-25T22:03:44Z, verdict
-  //   2026-09-15T22:03:44Z), whose spec adds no products and whose readability
-  //   depends on the tool surface not moving underneath it. Adding a tool now
-  //   would change the thing being measured while it is being measured.
-  //
-  //   This gap PREDATES that cycle: it fails identically on the untouched 1.5.1
-  //   tree, so it has been blocking releases since /sanctions shipped on the
-  //   gateway — which is why it surfaced here rather than being introduced here.
-  //
-  //   VOID THIS ENTRY when either fact stops being true: agent-utils-mcp reaches
-  //   npm, or the cycle closes on 2026-09-15. Then either cover /sanctions with a
-  //   tool or write a new reason. Do not let it age into furniture.
-  '/sanctions': 'UNCOVERED on npm — tool exists only in agent-utils-mcp, which is not published (404, 2026-08-25). Deferred, not solved: no product may be added during the x402-p1p2p3 cycle. Revisit 2026-09-15.',
+const wellKnownRes = await fetch(`${GATEWAY}/.well-known/x402`, timeout);
+if (!wellKnownRes.ok) throw new Error(`gateway /.well-known/x402 returned HTTP ${wellKnownRes.status}`);
+const wellKnown = await wellKnownRes.json();
 
-  // ⚠ FOUR MORE WAIVERS, 2026-09-09, each a live-window fence and not a choice.
-  //
-  //   The three /edgar routes are the SUBJECT of `s2-edgar-open`, a pre-registered
-  //   window (t0 2026-08-28T07:09:40Z, verdict 2026-09-27T07:09:40Z) that measures
-  //   whether external wallets pay for them AS LISTED. Giving them an MCP tool
-  //   mid-window changes the arrival surface of the thing being measured; the
-  //   window would then read the tool, not the listing. They are uncovered on
-  //   npm and this says so. '/company' shipped on the gateway after 1.6.0 and is
-  //   held by the cycle-3 hold-still (verdict 2026-09-27T08:54:50.647Z): no tool
-  //   is added while that window is open.
-  //
-  //   This is what blocked the 1.6.1 publish (run 34370444735): the gateway grew
-  //   four products after the last release and this gate did its job. The
-  //   release it was blocking contains only buyer-safety fixes in pay.mjs.
-  //
-  //   VOID THESE FOUR on 2026-09-27 when both windows have verdicts: cover them
-  //   with tools, or write a new reason. Do not let them age into furniture.
-  '/edgar/filings': 'subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.',
-  '/edgar/events': 'subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.',
-  '/edgar/insiders': 'subject of the live s2-edgar-open window (verdict 2026-09-27T07:09:40Z); a tool mid-window confounds it. UNCOVERED on npm until then.',
-  '/company': 'shipped on the gateway after 1.6.0; held by the cycle-3 hold-still (verdict 2026-09-27T08:54:50.647Z). No tool while the window is open. UNCOVERED on npm until then.',
-};
+const openapiRes = await fetch(`${GATEWAY}/openapi.json`, timeout);
+if (!openapiRes.ok) throw new Error(`gateway /openapi.json returned HTTP ${openapiRes.status}`);
+const openapi = await openapiRes.json();
 
-function familyOf(p) {
-  const m = p.match(new RegExp(`^/(${CHAINS.join('|')})(/.*)$`));
-  return m ? m[2] : p;
-}
-
-const res = await fetch(`${GATEWAY}/openapi.json`, { signal: AbortSignal.timeout(30000) });
-if (!res.ok) throw new Error(`gateway /openapi.json returned HTTP ${res.status}`);
-const openapi = await res.json();
-
-// /demo/* is the free try-before-you-pay surface, not a sold product.
-const sold = [...new Set(
-  Object.keys(openapi.paths || {}).filter((p) => !p.startsWith('/demo')).map(familyOf),
+// The resources array holds absolute URLs; reduce to paths.
+const listed = [...new Set(
+  (wellKnown.resources || []).map((r) => {
+    const u = typeof r === 'string' ? r : (r.resource || r.url || '');
+    try { return new URL(u).pathname; } catch { return String(u); }
+  }).filter(Boolean),
 )].sort();
 
-// Every gateway path a tool targets, read from the route template literals.
-// Parsing the source rather than importing: server.mjs is a stdio server and
-// importing it starts a readline loop that never returns.
-const src = fs.readFileSync(path.join(ROOT, 'server.mjs'), 'utf8');
-const covered = new Set([...src.matchAll(/`(\/[a-z][a-z-]*)/g)].map((m) => m[1]));
-
-const missing = sold.filter((p) => !covered.has(p) && !(p in EXEMPT));
-const gaps = sold.filter((p) => !covered.has(p) && p in EXEMPT);
-
-console.log(`gateway sells ${sold.length} product families; this server covers ${sold.filter((p) => covered.has(p)).length}`);
-if (gaps.length) {
-  console.log(`\n  known uncovered (${gaps.length}) — listed in EXEMPT, not silently dropped:`);
-  for (const p of gaps) console.log(`    ${p.padEnd(18)} ${EXEMPT[p]}`);
+if (!listed.length) {
+  // A gate that cannot see the inventory refuses; it never passes. [fail-closed]
+  throw new Error('/.well-known/x402 listed 0 resources — refusing to report coverage against an empty inventory');
 }
 
-// A stale exemption is its own bug: it hides a product that no longer exists and
-// would mask a real gap if the path were ever reused.
-const stale = Object.keys(EXEMPT).filter((p) => !sold.includes(p) || covered.has(p));
-if (stale.length) {
-  console.log(`\n  ⚠ stale EXEMPT entries (product gone, or now covered): ${stale.join(', ')}`);
+// Ask the route functions what they target rather than pattern-matching the
+// source. See the DEX_MCP_DUMP_ROUTES block in server.mjs for why.
+const dump = execFileSync(process.execPath, [path.join(ROOT, 'server.mjs')], {
+  env: { ...process.env, DEX_MCP_DUMP_ROUTES: '1' },
+  encoding: 'utf8',
+});
+const tools = dump.trim().split('\n').filter(Boolean).map((l) => {
+  const [name, route] = l.split('\t');
+  return { name, route };
+});
+const networked = tools.filter((t) => t.route !== '(local)');
+const covered = new Map(networked.map((t) => [t.route, t.name]));
+
+const priceOf = (p) => openapi.paths?.[p]?.get?.['x-payment-info']?.priceUsd || '?';
+
+console.log(`gateway lists ${listed.length} route(s); this server has ${networked.length} route tool(s) `
+  + `and ${tools.length - networked.length} local tool(s)\n`);
+
+for (const p of listed) {
+  const tool = covered.get(p);
+  console.log(`  ${tool ? '✓' : '✖'} ${p.padEnd(22)} ${String(priceOf(p)).padEnd(6)} ${tool || (EXEMPT[p] ? `WAIVED — ${EXEMPT[p]}` : 'NO TOOL')}`);
 }
 
-if (missing.length) {
-  console.error(`\n✖ ${missing.length} gateway product(s) have no MCP tool and no EXEMPT entry:`);
-  for (const p of missing) console.error(`    ${p}`);
-  console.error('\nAdd a tool to server.mjs, or an EXEMPT entry with a reason. MCP is the');
-  console.error('channel with actual traction — shipping a product that never reaches it');
-  console.error('is the failure this check exists to catch.');
+const missing = listed.filter((p) => !covered.has(p) && !(p in EXEMPT));
+const waived = listed.filter((p) => !covered.has(p) && p in EXEMPT);
+const extra = networked.filter((t) => !listed.includes(t.route));
+
+// A route listed in openapi but absent from it is a broken listing, and it would
+// otherwise show up only as a '?' in the price column.
+const unknownToOpenapi = listed.filter((p) => !openapi.paths?.[p]);
+
+// A waiver whose route is no longer listed is furniture: it hides nothing and
+// would mask a real gap if the path were listed again.
+const stale = Object.keys(EXEMPT).filter((p) => !listed.includes(p) || covered.has(p));
+
+const problems = [];
+if (missing.length) problems.push(`${missing.length} listed route(s) have no tool and no waiver: ${missing.join(', ')}`);
+if (extra.length) problems.push(`${extra.length} tool(s) target a route the gateway does not list: ${extra.map((t) => `${t.name} -> ${t.route}`).join(', ')}`);
+if (unknownToOpenapi.length) problems.push(`${unknownToOpenapi.length} listed route(s) are absent from openapi.json: ${unknownToOpenapi.join(', ')}`);
+if (stale.length) problems.push(`stale EXEMPT entries (route no longer listed, or now covered): ${stale.join(', ')}`);
+
+if (waived.length) {
+  console.log(`\n  ⚠ ${waived.length} listed route(s) WAIVED, not covered:`);
+  for (const p of waived) console.log(`    ${p.padEnd(22)} ${EXEMPT[p]}`);
+}
+
+if (problems.length) {
+  console.error('\n✖ the tool list and the listed catalogue do not agree:');
+  for (const m of problems) console.error(`    ${m}`);
+  console.error('\nAdd or remove a tool in server.mjs, or add an EXEMPT entry with a reason and');
+  console.error('the condition that ends it. This package is the front door to the storefront:');
+  console.error('a door with a room missing, or a door onto a room that was closed, is the');
+  console.error('failure this check exists to catch.');
   if (!WARN_ONLY) process.exit(1);
+  console.log('\n(--warn set: not failing)');
+} else {
+  console.log('\n✅ every listed route has exactly one tool, and no tool points anywhere else');
 }
-
-console.log(missing.length ? '\n(--warn set: not failing)' : '\n✅ every sold product is covered or explicitly exempt');

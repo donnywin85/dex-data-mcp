@@ -2,240 +2,214 @@
 
 [![dex-data-mcp MCP server](https://glama.ai/mcp/servers/donnywin85/dex-data-mcp/badges/score.svg)](https://glama.ai/mcp/servers/donnywin85/dex-data-mcp)
 
-**Twenty-three tools for your agent — DEX market data, everyday utilities and
-reference data. Twenty-two need no API key, no wallet and no signup; one is paid
-and pays from a wallet you control.**
+---
 
-## Try it in 30 seconds
+# For an agent
+
+Everything you need to decide whether to call this server, and what it will cost,
+is in this section. Read no further unless a human is asking.
+
+## Install
 
 ```bash
 claude mcp add dex-data -- npx -y dex-data-mcp
 ```
 
-That is the whole install. Ask your agent *"what's the price of WBNB on BSC?"*
-and it answers from live on-chain pool state:
+Or, for any MCP host that reads a JSON config:
 
 ```json
-{
-  "symbol": "WBNB", "priceUsd": 677.25, "network": "bsc",
-  "via": "WBNB/USDT", "venues": 7, "totalTvlUsd": 117110555.6,
-  "confidence": "HIGH", "spreadBps": 25.26, "blockNumber": 117223818
-}
+{ "mcpServers": { "dex-data": { "command": "npx", "args": ["-y", "dex-data-mcp"] } } }
 ```
 
-**Measured 2026-08-21: all 22 free tools answered keyless, with full payloads.**
-No tool is degraded on the free tier, and none returns a stub or a placeholder —
-the free answer is the same answer. What the free tier limits is *how many* calls
-per day, not what is in them.
+## Cost model
 
-Since 1.6.0 there is also **one paid tool**, `get_dex_spread` — see
-[Paid tools](#paid-tools). It is the only tool that needs a wallet, it is labelled
-PAID in its own description, and without a wallet it explains what to set and
-spends nothing. The 22 tools above are unaffected by it.
+**The first 25 calls each day are free on every tool.** No wallet, no signup, no
+API key, no account. The free answer is the full answer — nothing is stubbed,
+truncated or degraded. What the free tier limits is how many calls you make, not
+what is in them.
 
-Twenty-two free tools, no API key and no wallet, in three groups:
+After 25 calls in a day, a tool returns a payment challenge instead of an answer.
+If — and only if — a wallet is configured, this server settles that challenge in
+USDC on Base and returns the answer. With no wallet it tells you the price and
+spends nothing.
 
-- **Multi-chain DEX market data** — token prices, liquidity depth, pool reserves,
-  best execution venue, liquidity risk, pre-trade slippage and gas costs across BNB Chain,
-  Polygon, Arbitrum, Base, Avalanche and Optimism.
-- **General-purpose agent utilities** — geocoding, reverse geocoding, weather,
-  web search, article/PDF to Markdown, and cryptographic randomness.
-- **Reference and research data** — search autocomplete, public holidays and
-  business days, RSS/Atom feeds, IP geolocation, GLEIF legal-entity lookup and
-  the US Treasury yield curve.
+## Environment
 
-## Why this exists
+| variable | what it does | default |
+|---|---|---|
+| `DEX_WALLET_KEY` | EVM private key that pays. **Omit it and this server can never spend anything.** `EVM_PRIVATE_KEY` is read as a fallback. | unset — free tier only |
+| `DEX_MAX_PRICE_USD` | Per-call ceiling. A call costing more is refused **before** paying. | `0.05` |
+| `DEX_MAX_SPEND_USD` | Total for the life of the process. | `1.00` |
+| `DEX_MAX_CALLS` | Number of paid calls for the life of the process. | `200` |
+| `DEX_MCP_TIMEOUT_MS` | Upstream request timeout. | `45000` |
 
-The ledger says it plainly. Of 20,392 paywall challenges recorded, **zero** were
-genuine third-party queries — 82.5% were our own monitoring, 17.3% were catalogue
-crawlers walking every route with no parameters. We were being indexed, not
-shopped.
+The default ceiling is `$0.05`, which is exactly the dearest tool here. Lower it
+below that and the `$0.05` tools stop working — deliberately, and they say so.
 
-Bazaar listings are a bet on demand that does not exist yet. MCP is where agents
-already are today: Claude Desktop, Claude Code, Cursor, and every other MCP host.
-This server is the same data, delivered where the users are, and it needs no
-payment at all for the free tier — which removes the one barrier that a browsing
-agent cannot cross on its own.
+## The cap, and what "fails closed" means
 
-## Install
+Every paid call passes the same four gates, in this order, and any one of them
+refuses without paying:
 
-**Claude Code**
+1. **No wallet** → never pays. This is the state you are in unless someone set a key.
+2. **Price unreadable** → refuses. A challenge whose amount cannot be parsed is
+   not treated as free or as cheap; it is treated as unknown, and unknown does
+   not get paid.
+3. **Price above `DEX_MAX_PRICE_USD`** → refuses, and names the price and the cap.
+4. **Would cross `DEX_MAX_SPEND_USD` or `DEX_MAX_CALLS`** → refuses.
 
-```
-claude mcp add dex-data -- npx -y dex-data-mcp
-```
+Accounting is in integer micro-USD, so a `$1.00` budget at `$0.05` a call buys
+exactly 20 calls and not 19 — floating-point drift cannot quietly close the
+budget early.
 
-**Claude Desktop / Cursor** — add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "dex-data": {
-      "command": "npx",
-      "args": ["-y", "dex-data-mcp"]
-    }
-  }
-}
-```
-
-No API key, no wallet, no signup. The free tier answers every tool for a daily
-allowance; after that the endpoints fall back to x402 micropayments.
+**Call `get_spend_budget` before any loop over paid tools.** It is free, local
+and makes no network call, and it returns what has been spent and every cap in
+force.
 
 ## Tools
 
-**DEX market data**
+Thirteen tools. Twelve fetch from the gateway; one is local. Each of the twelve
+targets exactly one route, and together they are exactly the routes the
+storefront lists — there is no hidden catalogue and no tool pointing at
+something that was withdrawn.
 
-| tool | answers |
-|---|---|
-| `get_token_price` | USD price of any ERC-20, by ticker or contract address |
-| `get_liquidity` | market depth and TVL per venue for a pair |
-| `get_best_venue` | which DEX is cheapest to buy on / best to sell into |
-| `get_slippage` | price impact for a specific trade size |
-| `get_liquidity_risk` | DEEP / MODERATE / SHALLOW / VERY_THIN depth class |
-| `get_gas` | gas cost in USD per chain, ranked cheapest-first (gwei is not comparable across chains) |
-| `get_pool_reserves` | raw reserves, fee and TVL per venue at one block — the data the others compute from |
-| `find_arbitrage` | cross-venue arbitrage now, ranked by gross USD at the optimal size, not raw spread |
-| `list_chains` | supported chains and indexed tokens |
+| tool | price/call | what it returns | example |
+|---|---|---|---|
+| `get_base_liquidity` | $0.01 | DEX liquidity, depth and TVL per venue on Base | `{"pair":"WETH/USDC"}` |
+| `get_polygon_token_price` | $0.01 | Live USD price from Polygon pools, with the backing liquidity and a confidence rating | `{"symbol":"WMATIC"}` |
+| `get_avalanche_pool_reserves` | $0.01 | Raw AMM reserves, fee, implied price and TVL at one block height | `{"pair":"WAVAX/USDC"}` |
+| `find_polygon_arbitrage` | $0.01 | Cross-venue price gaps on Polygon, ranked by gross spread | `{"minSpreadBps":25}` |
+| `find_avalanche_arbitrage` | $0.01 | The same scan on Avalanche C-Chain | `{"minSpreadBps":25}` |
+| `get_v4_hook_risk` | $0.01 | Uniswap v4 hook permission bits, custody class and verified-source consensus | `{"address":"0x…80"}` |
+| `lookup_lei` | $0.03 | GLEIF legal-entity record **by name**, lapsed entities flagged not hidden | `{"q":"Apple Inc."}` |
+| `get_treasury_yield_curve` | $0.03 | US Treasury par yield curve, 1 month to 30 years | `{}` for the latest |
+| `get_company_dossier` | $0.05 | Identity, OFAC screening and SEC registration for one entity, joined | `{"ticker":"AAPL"}` |
+| `get_sec_filings` | $0.05 | Everything an issuer has filed since your cursor | `{"ticker":"AAPL","since":"2026-09-01"}` |
+| `get_sec_events` | $0.05 | 8-K material events since your cursor, decoded by item code | `{"ticker":"TSLA","since":"2026-09-01","items":"5.02"}` |
+| `get_sec_insiders` | $0.05 | Forms 3/4/5, SC 13D/G ownership changes since your cursor | `{"ticker":"NVDA","since":"2026-09-01"}` |
+| `get_spend_budget` | free, local | What this session has spent and every cap in force | `{}` |
 
-**General-purpose agent utilities**
+Prices are USDC on Base (`eip155:8453`) and are read from the gateway's own
+`x-payment-info`, not kept in step by hand.
 
-Not a change of theme — these were chosen the same way everything else here was.
-Reading USDC receipts across 1,062 x402 seller wallets on Base ranked what
-actually gets paid for, and DEX data was not near the top of that list. Forward
-geocoding was (56 paying wallets), then weather, then article-to-Markdown, then
-randomness. These are the answers to that data.
+## Three things that will save you a wasted call
 
-| tool | answers |
-|---|---|
-| `geocode` | address or place name to coordinates, worldwide (OpenStreetMap) |
-| `reverse_geocode` | coordinates to the nearest street address |
-| `get_weather` | current conditions plus up to a 7-day forecast for any coordinates |
-| `search` | free-text web search to ranked organic results, sponsored rows excluded |
-| `url_to_markdown` | a public article or PDF URL to clean Markdown |
-| `get_random` | CSPRNG integers or bytes, for agents that cannot generate their own |
+- **The three `get_sec_*` tools return DELTAS, not dumps.** `since` is required
+  and inclusive. Pass the date you last read; you get what has landed since.
+  They report `matched` and `truncated`, so a cut-off delta is never mistaken
+  for a complete one.
+- **Missing arguments are refused here, not upstream.** A call with a required
+  argument absent or empty is stopped before any request is made, and says
+  `Nothing was requested and nothing was spent`. It does not become
+  `?symbol=undefined` and it does not cost you a call.
+- **`get_v4_hook_risk` never outputs SAFE.** It is capability analysis: it tells
+  you what a hook is *able* to do to your trade, not whether its author intends
+  to. Treat `OPAQUE` as unresolved, not as clean.
 
-**Reference and research data**
+---
 
-Chosen the same way, but from a corrected reading. The category totals in the
-original scan were double-counted — the biggest x402 sellers carry 10-16 of the
-16 category tags each, so every category reported nearly the whole market's
-revenue. Seller-level rows are clean, and every tool below is something a wallet
-took real USDC for during the sampled window.
+# For a human
 
-| tool | answers |
-|---|---|
-| `get_search_suggestions` | what people actually type about a topic — autocomplete, expanded into questions and comparisons |
-| `get_holidays` | public and bank holidays for 100+ countries, and whether a given date is a business day |
-| `read_feed` | any RSS, Atom or RDF feed as clean JSON, summaries in both HTML and plain text |
-| `geolocate_ip` | where an IP is, with the datacentre/VPN flag that says whether to believe it |
-| `lookup_lei` | a company's Legal Entity Identifier **by name**, with lapsed registrations flagged not hidden |
-| `get_treasury_yield_curve` | the US par yield curve plus 2s10s / 3m10y / 5s30s and the inversion flag |
+## What this is
 
-**Local**
+Thirteen MCP tools over live on-chain and regulatory data: DEX market state on
+Base, Polygon and Avalanche, Uniswap v4 hook security, GLEIF legal-entity
+lookup, OFAC-screened counterparty dossiers, SEC EDGAR change oracles and the US
+Treasury yield curve.
 
-| tool | answers |
-|---|---|
-| `get_spend_budget` | what this session has spent on paid calls, and the caps in force |
+Zero dependencies, stdio, Node 18+. The payment packages are optional and are
+only loaded if a wallet is configured.
 
-<a name="paid-tools"></a>
-**Paid — needs a wallet you control**
+## Why the tool list shrank in 1.7.0
 
-| tool | answers | price |
-|---|---|---|
-| `get_dex_spread` | real-time cross-DEX price & spread on BSC: per-venue prices across PancakeSwap v2, PancakeSwap v3 (all fee tiers), Biswap and ApeSwap in one call, plus best buy/sell venue, gross arbitrage spread (bps + USD), optimal trade size, liquidity and block number | $0.01 USDC/call, no free tier |
+1.6.1 shipped 23 tools. This release ships 13, and the nine-tool difference is
+the point.
 
-This tool used to be a separate package, `bsc-dex-spread-mcp`. It lives here now:
-one install, one config, free tools and paid tools side by side. Nothing else
-changed — same route, same data, same price.
+The gateway behind this server sold 62 priced routes, and this package carried a
+tool for most of them — including geocoding, weather, web search, public
+holidays, RSS and IP lookup. Then the demand was measured across the whole
+recorded history of the storefront: 12 routes have either organic buyers or no
+substitute anywhere in the catalogue. The other 50 had between zero and two
+calls each, every one of them from a single wallet. On 2026-09-16 the storefront
+was cut to those 12, and this release follows it.
 
-**Before you reach for it, the free tools may already answer you.**
-`get_liquidity` gives per-venue depth for a pair and `find_arbitrage` gives a
-cross-venue spread scan, both inside the 25-calls-a-day free tier with no wallet
-at all. `get_dex_spread` is worth paying for when you want all four BSC venues
-and the optimal trade size in a single call, or when you have exhausted the free
-allowance.
+A tool list is not free. It is loaded into the model's context in every session,
+whether or not a single tool is called, and a tool that advertises a shelf the
+storefront no longer stocks costs the agent a turn to discover the gap. Removing
+nine tools makes the list shorter and every entry in it true.
 
-Pairings worth knowing: `geocode` then `get_weather` turns a place name into a
-forecast, `search` then `url_to_markdown` turns a question into readable source
-text, and `read_feed` then `url_to_markdown` turns a feed into full articles.
+**The 50 dropped routes still work.** They are served, priced and payable by
+anyone holding the URL. Removing a tool withdrew a recommendation, not a product.
 
-## Free tier
+Three of the nine went for a second, independent reason: the upstreams behind
+`geocode`, `reverse_geocode` and `get_weather` retire on 2026-09-27. A tool that
+will 404 in eleven days should not ship in a release today.
 
-Every one of the 22 free tools answers within a daily per-caller allowance — no
-wallet, no signup. The remaining quota is returned on `X-FreeTier-Remaining`.
-Beyond it, calls fall back to x402 micropayments (USDC on Base). `get_dex_spread`
-is the exception: it is paid from the first call and has no allowance.
+## Upgrading from 1.6.x
 
-Every response carries the liquidity backing the number and a confidence rating.
-A quote with no depth behind it is refused rather than returned — a dust-pool
-price is worse than no price when an agent may trade on it.
+Breaking, and deliberately so:
 
-## Paying: the wallet is yours, and this package ships no keys
+- **No tool takes a `chain` argument any more.** Each tool targets one chain's
+  route and writes the whole path itself. Sending `chain` is now an error rather
+  than being silently ignored — ignoring it would have sent a Polygon question to
+  a Base route and charged for the answer.
+- **These tools are gone**, with the routes they used to call, which are all still
+  live: `get_token_price` (`/price`), `get_liquidity` (`/liquidity`),
+  `get_pool_reserves` (`/reserves`), `find_arbitrage` (`/scan`), `get_best_venue`
+  (`/route`), `get_slippage` (`/slippage`), `get_liquidity_risk` (`/risk`),
+  `geocode`, `reverse_geocode`, `get_weather`, `search`,
+  `get_search_suggestions`, `get_holidays`, `read_feed`, `get_random`,
+  `url_to_markdown`, `geolocate_ip`, `get_gas`, `list_chains` and
+  `get_dex_spread` (`/call`).
+- **Chain-specific replacements** exist for the routes the storefront kept:
+  `get_base_liquidity`, `get_polygon_token_price`,
+  `get_avalanche_pool_reserves`, `find_polygon_arbitrage`,
+  `find_avalanche_arbitrage`.
+- **New**: `get_v4_hook_risk`, `get_company_dossier`, `get_sec_filings`,
+  `get_sec_events`, `get_sec_insiders`.
+- `lookup_lei`, `get_treasury_yield_curve` and `get_spend_budget` are unchanged.
 
-**This package contains no private key, no seed and no funded wallet.** Payment
-is opt-in and off unless you set a key yourself; a package strangers install must
-never move funds because a model called a tool a few extra times.
+If you were calling a removed tool, the route behind it still answers. Call it
+directly, at list price, at `https://x402.donnyautomation.com`.
 
-Set **one** of these in your MCP client's `env` block for this server:
+## Paying
 
-```json
-{
-  "mcpServers": {
-    "dex-data": {
-      "command": "npx",
-      "args": ["-y", "dex-data-mcp"],
-      "env": { "DEX_WALLET_KEY": "0x<64 hex chars>" }
-    }
-  }
-}
+Set `DEX_WALLET_KEY` to an EVM private key holding USDC on Base, and install the
+optional payment packages:
+
+```bash
+npm i @x402/fetch @x402/core @x402/evm viem
 ```
 
-`EVM_PRIVATE_KEY` is accepted as an alias — it is the name the CDP x402 docs use
-and the name `bsc-dex-spread-mcp` read, so an existing config for that package
-keeps working unchanged.
+Without both, this server cannot spend anything: it returns the price and the
+payment instructions and stops. With them, it pays only what the caps in the
+agent section above allow.
 
-- **Fund it with USDC on Base and nothing else.** x402's `exact` scheme is
-  EIP-3009: you sign an off-chain authorization and the facilitator broadcasts and
-  pays the gas, so the wallet needs **zero ETH**.
-- **Use a burner.** The key sits in your MCP client config in plaintext. A few
-  dollars of USDC, never a main wallet.
-- **Spend is capped and fails closed** — `DEX_MAX_SPEND_USD` (default $1 total for
-  the process), `DEX_MAX_PRICE_USD` (default $0.05 for any single call) and
-  `DEX_MAX_CALLS` (default 200). Hitting any one stops payment and returns a plain
-  explanation rather than continuing to spend. The asking price is read from the
-  402 challenge and refused **before** paying if it exceeds the ceiling.
-- `get_spend_budget` reports what this session has spent and the caps in force.
+Use a wallet you funded for this and nothing else. This server holds no custody,
+takes no fee and sends nothing anywhere except the payment the challenge asks
+for — but the key is yours to scope.
 
-Without a wallet, `get_dex_spread` returns the price, the two env var names, the
-shape of the value and the free alternatives — never a stack trace, and never a
-silent failure.
+## Development
 
-## Honest limits
+```bash
+node test/arg-validation.test.mjs   # argument validation over real stdio, no network
+node test/budget.test.mjs           # spend-cap accounting, no wallet, no network
+node test/paywall-402.test.mjs      # every tool against a recorded 402, loopback only
+node test/spend-cap.test.mjs        # the cap refuses each price point, loopback only
+node scripts/check-coverage.mjs     # tools vs the gateway's listed catalogue (needs the network)
+```
 
-- Depth and prices cover **the venues this API indexes**; a deeper pool may exist
-  on a DEX not covered here.
-- v3 figures distinguish custody TVL from tradeable depth at the current price.
-  They are not the same number and are not labelled as if they were.
-- `get_slippage` is pool-level price impact: it excludes gas, MEV and multi-hop
-  routing, and flags v3 estimates that cross the active tick band.
-- A tool called without its required argument is **refused before any request is
-  made**, so a malformed call never spends a free-tier slot or a cent. The refusal
-  names the argument: `search` needs `q`, `get_slippage` needs `amountUsd` or
-  `amountIn`, `lookup_lei` needs `q` or `lei`.
+The three no-network suites run in CI on every push and pull request. The
+coverage check runs at release, because it is the only one that needs the
+gateway to be up.
 
-## Where to go next
+`test/fixtures/challenge-402.json` is a verbatim recording of the live gateway's
+402 challenge for each of the twelve routes. Re-record it if prices change; the
+suites assert that each tool's description quotes the same price the challenge
+asks for.
 
-- **Cross-DEX spread only, on six chains** — [`arb-dex-mcp`](https://github.com/donnywin85/arb-dex-mcp)
-  is the focused sibling: `npx -y arb-dex-mcp`. Keyless too, and its free answers
-  carry a `limitation` field naming exactly what a key would add.
-- **Paid, per-call BSC spread** — that is now the `get_dex_spread` tool *in this
-  package*; you do not need a second install. It was previously the standalone
-  [`bsc-dex-spread-mcp`](https://github.com/donnywin85/bsc-dex-spread-mcp), which
-  still works and is unchanged, but this server is where it is maintained.
-- **You want the compliance pair (OFAC screening, GLEIF LEI)** —
-  [`agent-utils-mcp`](https://github.com/donnywin85/agent-utils-mcp).
-- **You want the human-approval job queue this whole stack is operated by** —
-  [`approval-queue-starter`](https://github.com/donnywin85/approval-queue-starter),
-  one file, zero dependencies.
-- **The weekly measurements, free** — <https://arbdatadesk.beehiiv.com>.
-  **The live dashboard** — <https://arb-dex-data-production.up.railway.app/dashboard>.
+## Links
+
+- Gateway and full API: <https://x402.donnyautomation.com>
+- Source: <https://github.com/donnywin85/dex-data-mcp>
+- MIT licensed.

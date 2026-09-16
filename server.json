@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "com.donnyautomation/dex-data",
-  "description": "DEX data, geocoding, weather, search, holidays, LEI, yield curve. 22 free tools, 1 paid.",
+  "description": "DEX market data, SEC EDGAR change oracles, LEI and US Treasury curve. 13 tools, x402 paid.",
   "repository": {
     "url": "https://github.com/donnywin85/dex-data-mcp",
     "source": "github"
   },
-  "version": "1.6.1",
+  "version": "1.7.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "dex-data-mcp",
-      "version": "1.6.1",
+      "version": "1.7.0",
       "transport": {
         "type": "stdio"
       }

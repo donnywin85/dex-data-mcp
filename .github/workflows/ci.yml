@@ -100,3 +100,20 @@ jobs:
 
       - name: argument validation over real stdio JSON-RPC (no network)
         run: node test/arg-validation.test.mjs
+
+      # ★ budget.test.mjs EXISTED SINCE 2026-09-09 AND NO WORKFLOW RAN IT.
+      #   It is the file that pins the fail-closed spend caps — the ones that stop
+      #   an unreadable price from being paid — and for a week the caps were only
+      #   as good as whoever remembered to run it by hand. A test nothing executes
+      #   is documentation. [fail-closed]
+      - name: spend-cap accounting (no wallet, no network)
+        run: node test/budget.test.mjs
+
+      # Both suites below replay a RECORDED 402 challenge over loopback. No live
+      # payment, no funds, no gateway: CI cannot go red because an upstream is
+      # slow, and it cannot spend anything if it goes wrong.
+      - name: every tool against a recorded 402 challenge (loopback only)
+        run: node test/paywall-402.test.mjs
+
+      - name: the per-call ceiling refuses each price point (loopback only)
+        run: node test/spend-cap.test.mjs
