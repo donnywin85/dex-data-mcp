@@ -1,0 +1,18 @@
+npm notice
+npm notice package: x402-budget@0.1.0
+npm notice Tarball Contents
+npm notice 1.1kB LICENSE
+npm notice 7.8kB README.md
+npm notice 866B package.json
+npm notice 12.1kB src/index.mjs
+npm notice Tarball Details
+npm notice name: x402-budget
+npm notice version: 0.1.0
+npm notice filename: x402-budget-0.1.0.tgz
+npm notice package size: 8.3 kB
+npm notice unpacked size: 21.8 kB
+npm notice shasum: 4e291f1b2a187b7bad64d09e84bff9880387f5dd
+npm notice integrity: sha512-eu3GuwumZ25UR[...]KkGeX4ntI8Z7Q==
+npm notice total files: 4
+npm notice
+x402-budget-0.1.0.tgz

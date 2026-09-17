@@ -1,0 +1,105 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=14880-16cc78a9)
+{
+  "inputs": [
+    {
+      "type": "search",
+      "name": "q",
+      "id": null,
+      "label": null
+    },
+    {
+      "type": "hidden",
+      "name": "csrftoken",
+      "id": null,
+      "label": null
+    },
+    {
+      "type": "text",
+      "name": "tokenName",
+      "id": "create-gat_tokenName",
+      "label": "Token name *"
+    },
+    {
+      "type": "checkbox",
+      "name": "bypass2FA",
+      "id": "create-gat_bypass2FA",
+      "label": "Bypass two-factor authentication (2FA)",
+      "checked": false
+    },
+    {
+      "type": "text",
+      "name": "create-gat_allowedIPRanges_0",
+      "id": "create-gat_allowedIPRanges_0",
+      "label": "Input Range 1"
+    },
+    {
+      "type": "radio",
+      "name": "packagesAndScopesPermission",
+      "id": "create-gat_packagesAndScopesPermission_No-access",
+      "label": "No access",
+      "checked": true
+    },
+    {
+      "type": "radio",
+      "name": "packagesAndScopesPermission",
+      "id": "create-gat_packagesAndScopesPermission_Read-only",
+      "label": "Read only",
+      "checked": false
+    },
+    {
+      "type": "radio",
+      "name": "packagesAndScopesPermission",
+      "id": "create-gat_packagesAndScopesPermission_Read-and-write",
+      "label": "Read and write (publish and stage)",
+      "checked": false
+    },
+    {
+      "type": "radio",
+      "name": "packagesAndScopesPermission",
+      "id": "create-gat_packagesAndScopesPermission_Read-and-write-stage-only-",
+      "label": "Read and write (stage only)",
+      "checked": false
+    },
+    {
+      "type": "hidden",
+      "name": "csrftoken",
+      "id": null,
+      "label": null
+    }
+  ],
+  "selects": [],
+  "textareas": [
+    {
+      "name": "tokenDescription",
+      "id": "create-gat_tokenDescription",
+      "label": "Description (optional)"
+    }
+  ],
+  "buttons": [
+    {
+      "text": "×",
+      "type": null
+    },
+    {
+      "text": "Search",
+      "type": "submit"
+    },
+    {
+      "text": "Menu",
+      "type": null
+    },
+    {
+      "text": "Add IP Range",
+      "type": "button"
+    },
+    {
+      "text": "Generate token",
+      "type": "button"
+    },
+    {
+      "text": "Cancel",
+      "type": "button"
+    }
+  ]
+}
+[chrome-mutex:9222] Released lock (id=14880-16cc78a9)

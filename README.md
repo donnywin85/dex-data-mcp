@@ -185,6 +185,24 @@ Without both, this server cannot spend anything: it returns the price and the
 payment instructions and stops. With them, it pays only what the caps in the
 agent section above allow.
 
+- **Fund it with USDC on Base and nothing else.** x402's `exact` scheme is
+  EIP-3009: you sign an off-chain authorization and the facilitator broadcasts and
+  pays the gas, so the wallet needs **zero ETH**.
+- **Use a burner.** The key sits in your MCP client config in plaintext. A few
+  dollars of USDC, never a main wallet.
+- **Spend is capped and fails closed** — `DEX_MAX_SPEND_USD` (default $1 total for
+  the process), `DEX_MAX_PRICE_USD` (default $0.05 for any single call) and
+  `DEX_MAX_CALLS` (default 200). Hitting any one stops payment and returns a plain
+  explanation rather than continuing to spend. The asking price is read from the
+  402 challenge and refused **before** paying if it exceeds the ceiling. A cap
+  that cannot be parsed (`DEX_MAX_SPEND_USD=1,00`) now refuses to start rather
+  than silently evaluating to `NaN`, which switched every cap off.
+- `get_spend_budget` reports what this session has spent and the caps in force.
+- Since 1.7.0 the caps, the integer accounting and the receipts log live in
+  [`x402-budget`](packages/x402-budget), a standalone package in this repo that
+  holds no wallet. `pay.mjs` is the adapter that reads the `DEX_*` variables and
+  supplies the signing function. Behaviour is unchanged.
+
 Use a wallet you funded for this and nothing else. This server holds no custody,
 takes no fee and sends nothing anywhere except the payment the challenge asks
 for — but the key is yours to scope.
@@ -196,10 +214,11 @@ node test/arg-validation.test.mjs   # argument validation over real stdio, no ne
 node test/budget.test.mjs           # spend-cap accounting, no wallet, no network
 node test/paywall-402.test.mjs      # every tool against a recorded 402, loopback only
 node test/spend-cap.test.mjs        # the cap refuses each price point, loopback only
+node packages/x402-budget/test/budget.test.mjs  # the library's own caps and receipts, no network
 node scripts/check-coverage.mjs     # tools vs the gateway's listed catalogue (needs the network)
 ```
 
-The three no-network suites run in CI on every push and pull request. The
+The five no-network suites run in CI on every push and pull request. The
 coverage check runs at release, because it is the only one that needs the
 gateway to be up.
 

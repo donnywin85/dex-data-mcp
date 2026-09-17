@@ -1,0 +1,121 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=8512-8840611d)
+{
+  "url": "https://www.npmjs.com/settings/donnywin85/tokens/granular-access-tokens/new",
+  "title": "npm | Granular Access Token",
+  "text": "⚠️\n\nnpm tokens that bypass 2FA are being restricted — account changes (Aug 2026) and direct publishing (Jan 2027). Learn how to prepare →\n\n×\nskip to:contentpackage search\nPro\nTeams\nPricing\nDocumentation\nnpm\nSearch\nMenu\nSidebar\n Profile\n Packages\n Account\n Billing Info\n Access Tokens\n Staged Packages\nOrganizations\n+\nCreate New Organization\n\nNone\n\nNew Granular Access Token\nView token documentation\n\nGranular access tokens provide the most control by allowing you to configure fine-grained, tightly scoped permissions for your packages and organizations.\n\nGeneral\nToken name *\nProvide a unique name.\nDescription (optional)\nWhat is this token for?\nBypass two-factor authentication (2FA)\nAllowed IP ranges (optional)\nMust be valid CIDR notation.\nInput Range 1\nAdd IP Range\nPackages and scopes\nPackages and scopes permission\n\nPermissions\n\nNo access\nRead only\nRead and write (publish and stage)\nRead and write (stage only)\n\nOrganizations\n\nPermissions\n\nNo access \n\nExpiration\nExpiration Date\n30 days \nSummary\n\nThis token will:\n\nProvide no access to packages and scopes\nProvide no access to organizations\nExpires on Saturday, October 10, 2026\nGenerate tokenCancel\nFooter\nSupport\nHelp\nAdvisories\nStatus\nContact npm\nCompany\nAbout\nBlog\nPress\nTerms & Policies\nPolicies\nTerms of Use\nCode of Conduct\nPrivacy\nNew Granular Access Token",
+  "links": [
+    {
+      "text": "Learn how to prepare →",
+      "href": "https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/"
+    },
+    {
+      "text": "content",
+      "href": "#main"
+    },
+    {
+      "text": "package search",
+      "href": "#search"
+    },
+    {
+      "text": "Pro",
+      "href": "/products/pro"
+    },
+    {
+      "text": "Teams",
+      "href": "/products/teams"
+    },
+    {
+      "text": "Pricing",
+      "href": "/products"
+    },
+    {
+      "text": "Documentation",
+      "href": "https://docs.npmjs.com"
+    },
+    {
+      "text": "",
+      "href": "/"
+    },
+    {
+      "text": "Profile",
+      "href": "/~donnywin85"
+    },
+    {
+      "text": "Packages",
+      "href": "/settings/donnywin85/packages"
+    },
+    {
+      "text": "Account",
+      "href": "/settings/donnywin85/profile"
+    },
+    {
+      "text": "Billing Info",
+      "href": "/settings/donnywin85/billing"
+    },
+    {
+      "text": "Access Tokens",
+      "href": "/settings/donnywin85/tokens"
+    },
+    {
+      "text": "Staged Packages",
+      "href": "/settings/donnywin85/staged-packages"
+    },
+    {
+      "text": "Add Organization",
+      "href": "/org/create"
+    },
+    {
+      "text": "Sign Out",
+      "href": "/logout"
+    },
+    {
+      "text": "Profile",
+      "href": "/~donnywin85"
+    },
+    {
+      "text": "Packages",
+      "href": "/settings/donnywin85/packages"
+    },
+    {
+      "text": "Account",
+      "href": "/settings/donnywin85/profile"
+    },
+    {
+      "text": "Billing Info",
+      "href": "/settings/donnywin85/billing"
+    },
+    {
+      "text": "Access Tokens",
+      "href": "/settings/donnywin85/tokens"
+    },
+    {
+      "text": "Staged Packages",
+      "href": "/settings/donnywin85/staged-packages"
+    },
+    {
+      "text": "+\nCreate New Organization",
+      "href": "/org/create"
+    },
+    {
+      "text": "View token documentation",
+      "href": "https://docs.npmjs.com/creating-and-viewing-access-tokens#creating-granular-access-tokens-on-the-website"
+    },
+    {
+      "text": "Granular access tokens",
+      "href": "https://docs.npmjs.com/about-access-tokens#about-granular-access-tokens"
+    },
+    {
+      "text": "CIDR notation",
+      "href": "https://docs.npmjs.com/creating-and-viewing-access-tokens/#cidr-restricted-token-errors"
+    },
+    {
+      "text": "",
+      "href": "https://github.com/npm"
+    },
+    {
+      "text": "",
+      "href": "https://github.com"
+    },
+    {
+      "text": "Help",
+      "href": "https://d

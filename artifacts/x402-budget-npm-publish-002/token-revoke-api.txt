@@ -1,0 +1,16 @@
+LIST status 200
+[
+  {
+    "name": "x402-budget-first-publish",
+    "created": "2026-09-11T01:32:47.381Z",
+    "bypass2FA": true
+  },
+  {
+    "name": "dex-data-mcp publish",
+    "created": "2026-08-01T08:11:20.710Z",
+    "bypass2FA": false
+  }
+]
+revoking id bacde692-7db8-4d2f-8135-b71a8c91cadb
+DELETE status 403  
+post-revoke whoami status 200  {"username":"donnywin85"}

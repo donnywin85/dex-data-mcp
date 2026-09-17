@@ -27,6 +27,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      # ★ 1.7.0 made this repo a workspace: pay.mjs imports `x402-budget` from
+      #   packages/x402-budget rather than carrying its own copy of the spend
+      #   caps. Without the symlink that import fails and the stdio test below
+      #   cannot even start the server.
+      #
+      #   --omit=optional keeps the promise at the top of this file: the x402
+      #   client packages are optionalDependencies, so omitting them leaves
+      #   nothing to fetch and the whole install resolves from disk. Measured
+      #   with --offline on 2026-09-10: 1 package, 0.8s, no registry contact.
+      - name: link the workspace (no registry contact)
+        run: npm install --omit=optional --no-audit --no-fund --no-package-lock
+
       - name: syntax check (every tracked .js/.cjs/.mjs)
         run: |
           set -euo pipefail
@@ -125,3 +138,9 @@ jobs:
 
       - name: the per-call ceiling refuses each price point (loopback only)
         run: node test/spend-cap.test.mjs
+
+      # ★ The LIBRARY has its own suite, and running the adapter's is not running
+      #   it. x402-budget ships from packages/ as its own npm package: its caps
+      #   are the ones a buyer outside this repo gets. Offline by construction.
+      - name: spend caps and receipts (x402-budget library)
+        run: node packages/x402-budget/test/budget.test.mjs

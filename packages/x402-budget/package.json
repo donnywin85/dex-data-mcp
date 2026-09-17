@@ -1,0 +1,43 @@
+{
+  "name": "x402-budget",
+  "version": "0.1.0",
+  "description": "Buyer-side spend caps and payment receipts for x402 agents. Holds no wallet.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node test/budget.test.mjs"
+  },
+  "keywords": [
+    "x402",
+    "spend-control",
+    "budget",
+    "receipts",
+    "agent-payments",
+    "pay-per-call",
+    "usdc",
+    "micropayments",
+    "ai-agent",
+    "mcp"
+  ],
+  "author": "donnyautomation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/donnywin85/dex-data-mcp.git",
+    "directory": "packages/x402-budget"
+  },
+  "bugs": {
+    "url": "https://github.com/donnywin85/dex-data-mcp/issues"
+  }
+}

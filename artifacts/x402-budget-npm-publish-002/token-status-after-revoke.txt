@@ -1,0 +1,2 @@
+whoami status 200  {"username":"donnywin85"}
+token list status 200  names=["x402-budget-first-publish","dex-data-mcp publish"]

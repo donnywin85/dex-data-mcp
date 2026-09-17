@@ -1,0 +1,19 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=30068-b976e4d7)
+{
+  "at": "2026-09-11T01:40:54.964Z",
+  "dialogs": [
+    {
+      "type": "confirm",
+      "message": "Are you sure?"
+    }
+  ],
+  "listedBefore": true,
+  "click": "clicked row delete control",
+  "midText": "⚠️ npm tokens that bypass 2FA are being restricted — account changes (Aug 2026) and direct publishing (Jan 2027). Learn how to prepare → × Two-Factor Authentication Security key Click the button below when you are ready to authenticate. Use security key Unable to verify with your security key? Use password",
+  "confirm": "no in-page confirm button",
+  "afterUrl": "https://www.npmjs.com/settings/donnywin85/tokens/delete",
+  "title": "npm",
+  "escalated": false,
+  "stillListed": false
+}
+[chrome-mutex:9222] Released lock (id=30068-b976e4d7)

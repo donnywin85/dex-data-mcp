@@ -1,0 +1,11 @@
+token fingerprint sha256/12: f859d4c1e6eb
+404  https://registry.npmjs.org/-/package/x402-budget/oidc
+      {"code":"ResourceNotFound","message":"/-/package/x402-budget/oidc does not exist"}
+404  https://registry.npmjs.org/-/package/x402-budget/trusted-publisher
+      {"code":"ResourceNotFound","message":"/-/package/x402-budget/trusted-publisher does not exist"}
+404  https://registry.npmjs.org/-/npm/v1/trusted-publishers?package=x402-budget
+      {"code":"ResourceNotFound","message":"/-/npm/v1/trusted-publishers does not exist"}
+200  https://registry.npmjs.org/-/package/x402-budget/collaborators
+      {"donnywin85":"write"}
+200  https://registry.npmjs.org/-/whoami
+      {"username":"donnywin85"}

@@ -1,0 +1,108 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=27956-8686866e)
+{
+  "at": "2026-09-11T01:32:33.615Z",
+  "generate": true,
+  "steps": [
+    "typed token name",
+    "checked bypass2FA",
+    "selected Read and write (publish and stage)",
+    "selected All packages (a name that does not exist yet cannot be in select-packages)",
+    "clicked Generate token"
+  ],
+  "expirationOptions": [
+    "7 days",
+    "30 days",
+    "60 days",
+    "90 days",
+    "Custom..."
+  ],
+  "expirationPicked": "7 days",
+  "state": {
+    "inputs": [
+      {
+        "name": "tokenName",
+        "id": "create-gat_tokenName",
+        "label": "Token name *",
+        "filled": "non-empty"
+      },
+      {
+        "type": "checkbox",
+        "name": "bypass2FA",
+        "id": "create-gat_bypass2FA",
+        "label": "Bypass two-factor authentication (2FA)",
+        "checked": true
+      },
+      {
+        "name": "create-gat_allowedIPRanges_0",
+        "id": "create-gat_allowedIPRanges_0",
+        "label": "Input Range 1",
+        "filled": "empty"
+      },
+      {
+        "type": "radio",
+        "name": "packagesAndScopesPermission",
+        "id": "create-gat_packagesAndScopesPermission_No-access",
+        "label": "No access",
+        "checked": false
+      },
+      {
+        "type": "radio",
+        "name": "packagesAndScopesPermission",
+        "id": "create-gat_packagesAndScopesPermission_Read-only",
+        "label": "Read only",
+        "checked": false
+      },
+      {
+        "type": "radio",
+        "name": "packagesAndScopesPermission",
+        "id": "create-gat_packagesAndScopesPermission_Read-and-write",
+        "label": "Read and write (publish and stage)",
+        "checked": true
+      },
+      {
+        "type": "radio",
+        "name": "packagesAndScopesPermission",
+        "id": "create-gat_packagesAndScopesPermission_Read-and-write-stage-only-",
+        "label": "Read and write (stage only)",
+        "checked": false
+      },
+      {
+        "type": "radio",
+        "name": "selectedPackagesAndScopes",
+        "id": "packagesAll",
+        "label": "All packages",
+        "checked": true
+      },
+      {
+        "type": "radio",
+        "name": "selectedPackagesAndScopes",
+        "id": "packagesAndScopesSome",
+        "label": "Only select packages and scopes",
+        "checked": false
+      }
+    ],
+    "menus": [
+      {
+        "label": null,
+        "controls": null
+      },
+      {
+        "label": "Expiration Date : 7 days",
+        "controls": "expiration-days-menu"
+      }
+    ],
+    "errors": [
+      "npm tokens that bypass 2FA are being restricted — account changes (Aug 2026) and direct publishing (Jan 2027). Learn how to prepare →",
+      "Bypass-2fa token with direct-publish access are being deprecated. The ability to publish new versions directly with a granular access token will be removed in January 2027. For safer publishing, choose \"Read and write (stage only)\"."
+    ]
+  },
+  "after": {
+    "url": "https://www.npmjs.com/settings/donnywin85/tokens/",
+    "title": "npm | Settings: Tokens",
+  },
+  "tokenFingerprint": "f859d4c1e6eb",
+  "tokenLength": 40,
+  "npmrcWritten": "C:/Users/donny/AppData/Local/Temp/x402-budget-publish.npmrc",
+  "valuePrinted": 0
+}
+[chrome-mutex:9222] Released lock (id=27956-8686866e)

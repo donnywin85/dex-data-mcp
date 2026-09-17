@@ -19,27 +19,21 @@ import { fetchMaybePaid, payEnabled, budget, WALLET_ENV_NAMES } from './pay.mjs'
 //   package.json said 1.5.1 and serverInfo said 1.5.1. The UA is not cosmetic -
 //   the gateway resolves attribution from it, and a stale one made "which build
 //   is actually calling us" unanswerable from the ledger.
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 
 const BASE = (process.env.X402_BASE || 'https://x402.donnyautomation.com').replace(/\/$/, '');
 
 // ══ ATTRIBUTION ════════════════════════════════════════════════════════════
 //
-// WHY THIS HEADER EXISTS. The 2026-08-04 -> 08-25 cycle closed with 4 settled
-// external calls from 3 wallets and NO WAY TO SAY WHERE ANY OF THEM CAME FROM.
-// The gateway now records a `src` bucket on every ledger row; this is the client
-// half of that sensor. Without it, a payer arriving through this npm package is
-// indistinguishable from one who found the origin by other means, and the cycle
-// cannot answer the only question it exists to ask.
-//
-// `npm-client` is a member of the gateway's CLOSED enum (SRC_BUCKETS in
-// server.js). Do not invent a new value here: an unrecognised tag is recorded as
-// `unknown` with `srcRejected` set, so a typo reads as silence, not as an error.
+// WHY THIS HEADER EXISTS, and why SRC_TAG is imported rather than declared here:
+// it is the client half of the gateway's `src` attribution sensor, and since
+// 1.7.0 the x402-budget library sets the header from its `source` option. Two
+// declarations could drift and the library's would silently win, so pay.mjs owns
+// the constant and the full rationale. Do not re-declare it.
 //
 // The user-agent is the FALLBACK for the same question and must keep matching
 // the gateway's CLIENT_PATTERNS entry /^dex-data-mcp\//i - so the package name
 // and the trailing slash are load-bearing, not decoration.
-const SRC_TAG = 'npm-client';
 const USER_AGENT = `dex-data-mcp/${VERSION} (+https://github.com/donnywin85/dex-data-mcp)`;
 const TIMEOUT_MS = Number(process.env.DEX_MCP_TIMEOUT_MS || 45000);
 // ══ THE TOOL LIST IS THE CATALOGUE ═════════════════════════════════════════
@@ -529,7 +523,8 @@ async function callTool(name, args) {
   const headers = {
     accept: 'application/json',
     'user-agent': USER_AGENT,
-    'x-402-source': SRC_TAG,
+    // 'x-402-source' is set by x402-budget from the `source` option pay.mjs
+    // passes (SRC_TAG). Setting it here too would give the tag two owners.
   };
 
   // Pays automatically only if a wallet is configured AND every budget cap allows

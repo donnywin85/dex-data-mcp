@@ -1,0 +1,150 @@
+# publish-x402-budget.yml — publish packages/x402-budget to npm from CI, so the
+# token never needs to reach a laptop. Mirrors publish.yml, which does the same
+# job for the dex-data-mcp server at the repo root.
+#
+# WHY A SECOND WORKFLOW RATHER THAN A MATRIX: the two artifacts release on
+# independent clocks. dex-data-mcp is pinned at 1.6.1 for the duration of the
+# MCP-distribution experiment; x402-budget has no such window and should be able
+# to ship a patch without touching the thing being measured. A shared workflow
+# would couple them at exactly the point where they must stay separate.
+#
+# ★ TAG NAMESPACE. This fires on `x402-budget-v*`, NOT on `v*`. publish.yml owns
+#   `v*`, and a shared prefix would make every server release also try to publish
+#   the library (and vice versa) — the second job failing on an already-published
+#   version, or worse, succeeding with the wrong contents.
+
+name: publish-x402-budget
+
+on:
+  push:
+    tags: ['x402-budget-v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack only, do not publish'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write        # npm Trusted Publishing (OIDC) + provenance
+
+defaults:
+  run:
+    working-directory: packages/x402-budget
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # MUST come after setup-node: setup-node installs its own bundled npm and
+      # would overwrite an earlier upgrade. Trusted Publishing needs npm >= 11.5.
+      - name: Upgrade npm for Trusted Publishing (OIDC)
+        run: |
+          npm install -g npm@latest
+          npm --version
+
+      # The library is dependency-free on purpose — it holds no wallet and needs
+      # no x402 package to decide whether a call is affordable — so there is
+      # nothing to install and the test suite touches no network.
+      - name: Syntax check
+        run: |
+          node --check src/index.mjs
+          node --check test/budget.test.mjs
+
+      - name: Spend caps and receipts test suite
+        run: node test/budget.test.mjs
+
+      # ★ A tag is a claim about a version, and an immutable publish is the wrong
+      #   place to discover the two disagree. Pushing x402-budget-v0.1.0 while
+      #   package.json says 0.1.1 would put 0.1.1 on npm under a tag naming
+      #   0.1.0, and npm versions cannot be re-cut.
+      - name: Tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/x402-budget-v}"
+          PKG=$(node -p "require('./package.json').version")
+          [ "$TAG" = "$PKG" ] || { echo "::error::tag says $TAG, package.json says $PKG"; exit 1; }
+          echo "OK: tag and package.json both say $PKG"
+
+      # ★ The `files` whitelist is the only thing standing between a local test
+      #   fixture and the public registry. Assert the tarball carries exactly the
+      #   source, the licence and the README — and no test directory, which is
+      #   where a throwaway key would live if one ever existed.
+      - name: Tarball carries only what it should
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > /tmp/pack.json
+          node -e '
+            // ★ npm 12.0.2 changed this payload from an ARRAY of packages to an
+            //   OBJECT keyed by package name, so the old `[0]` read undefined and
+            //   the guard died on a TypeError instead of checking the tarball.
+            //   Because `npm install -g npm@latest` above floats, this broke on
+            //   npm 12s release day without a line of this repo changing. Accept
+            //   either shape, and fail loudly if it is neither — a guard that
+            //   crashes is indistinguishable from a guard that passed.
+            const raw = require("/tmp/pack.json");
+            const entries = Array.isArray(raw) ? raw : Object.values(raw);
+            if (!entries.length || !entries[0] || !Array.isArray(entries[0].files)) {
+              console.error("::error::npm pack --json shape not recognised: " + JSON.stringify(raw).slice(0, 300));
+              process.exit(1);
+            }
+            const files = entries[0].files.map(f => f.path).sort();
+            console.log(files.join("\n"));
+            const stray = files.filter(f => /^test\//.test(f) || /\.env/.test(f));
+            if (stray.length) { console.error("::error::tarball contains " + stray.join(", ")); process.exit(1); }
+            if (!files.includes("src/index.mjs")) { console.error("::error::tarball is missing src/index.mjs"); process.exit(1); }
+            if (!files.includes("LICENSE")) { console.error("::error::tarball is missing LICENSE"); process.exit(1); }
+            console.log("OK: " + files.length + " files, no tests, no env");
+          '
+
+      - name: Pack (dry run)
+        if: inputs.dry_run
+        run: npm pack --dry-run
+
+      # ── FIRST-PUBLISH BOOTSTRAP, and why it is here ──────────────────────
+      # Trusted Publishing (OIDC) is the destination: npm verifies the workflow
+      # identity directly and provenance comes for free, with no credential in
+      # the path. It cannot carry the FIRST publish. A trusted publisher is
+      # configured at npmjs.com > <package> > Settings, and that page does not
+      # exist until the package does — npm/cli#8544 ("Allow publishing initial
+      # version with OIDC") was still OPEN when this ran, re-checked against the
+      # GitHub API rather than assumed. PyPI allows pre-registration; npm does
+      # not. So version 0.1.0 authenticates with the repository's existing
+      # NPM_TOKEN secret and every version after it uses OIDC.
+      #
+      # The token is a REPOSITORY SECRET. It is never on the laptop, never in a
+      # shell, never in a log — GitHub injects it into this step and masks it.
+      # That is the whole reason the first publish happens in CI rather than at
+      # a keyboard.
+      #
+      # ⚠ REMOVE THE `env:` BLOCK BELOW once the trusted publisher is registered
+      #   (donnywin85/dex-data-mcp -> publish-x402-budget.yml). Leaving it means
+      #   a credential stays on the release path that OIDC has already replaced.
+      #   The auth probe above it is what proves which of the two actually ran.
+
+      # A dead token must fail BEFORE the irreversible step, not during it.
+      # `npm whoami` is a positive probe: it returns a username or it exits
+      # non-zero. A username is an identity, not a secret.
+      - name: Auth probe (fail before publishing, not during)
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "authenticated to npm as: $(npm whoami)"
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

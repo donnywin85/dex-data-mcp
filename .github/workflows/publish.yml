@@ -136,6 +136,27 @@ jobs:
             }, 4000);
           '
 
+      # ★ 1.7.0 GAVE THIS PACKAGE ITS FIRST RUNTIME DEPENDENCY, and a dependency
+      #   that is not on npm makes the whole release uninstallable — `npm i
+      #   dex-data-mcp` would 404 on resolve, for everyone, immediately, and the
+      #   version cannot be re-cut. `x402-budget` lives in this repo under
+      #   packages/, so it is present for every local test and every CI run here
+      #   while being absent from the registry: nothing else in this pipeline can
+      #   notice the gap. Ask the registry, which is the authority.
+      - name: Every runtime dependency actually exists on npm
+        run: |
+          set -euo pipefail
+          deps=$(node -p "Object.entries(require('./package.json').dependencies||{}).map(function(e){return e[0]+'@'+e[1]}).join(' ')")
+          if [ -z "$deps" ]; then echo "no runtime dependencies to check"; exit 0; fi
+          for d in $deps; do
+            if npm view "$d" version >/dev/null 2>&1; then
+              echo "  ok  $d -> $(npm view "$d" version)"
+            else
+              echo "::error::$d does not resolve on npm; publishing would ship an uninstallable package"
+              exit 1
+            fi
+          done
+
       - name: Pack (dry run)
         if: inputs.dry_run
         run: npm pack --dry-run

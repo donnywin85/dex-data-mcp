@@ -1,0 +1,21 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=2456-56d8e343)
+{
+  "inputs": [],
+  "selects": [],
+  "textareas": [],
+  "buttons": [
+    {
+      "text": "×",
+      "type": null
+    },
+    {
+      "text": "Use security key",
+      "type": null
+    },
+    {
+      "text": "Use password",
+      "type": null
+    }
+  ]
+}
+[chrome-mutex:9222] Released lock (id=2456-56d8e343)

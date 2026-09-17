@@ -1,0 +1,17 @@
+  PASS  20 of 200 attempts are paid with a $1.00 budget at $0.05  — paid=20
+  PASS  exactly 20 signatures were produced  — signatures=20
+  PASS  the 21st attempt is refused as a spend cap  — spend cap reached ($1.00 of $1.00)
+  PASS  budget() reports $1.00 spent  — {"spentUsd":1,"calls":20,"maxSpendUsd":1,"maxCalls":200,"maxPricePerCallUsd":0.05,"remainingUsd":0}
+  PASS  unreadable price: 0 signatures  — signatures=0
+  PASS  unreadable price: refusal names fail-closed  — challenge price unreadable; refusing to pay (fail closed)
+  PASS  over-ceiling price: not paid  — call costs $0.06 which exceeds DEX_MAX_PRICE_USD ($0.05)
+  PASS  negative control: the old behaviour (50 signatures) is what case 2 rejects
+  PASS  free path (no wallet) still sends x-402-source: npm-client  — npm-client
+  PASS  free path is not reported as paid
+  PASS  no wallet: refusal names the missing wallet  — no wallet configured
+  PASS  paid path tags npm-client on the probe  — npm-client
+  PASS  paid path tags npm-client on the paid retry  — npm-client
+  PASS  refusal names DEX_MAX_PRICE_USD, not the library option name  — call costs $0.06 which exceeds DEX_MAX_PRICE_USD ($0.05)
+  PASS  budget() still returns the 1.6.1 field set  — calls,maxCalls,maxPricePerCallUsd,maxSpendUsd,remainingUsd,spentUsd
+
+all budget checks passed

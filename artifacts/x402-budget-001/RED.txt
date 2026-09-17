@@ -1,0 +1,47 @@
+  FAIL  20 of 200 attempts are paid with a $1.00 budget at $0.05  — paid=0
+  FAIL  exactly 20 signatures were produced  — signatures=0
+  FAIL  the 21st attempt is refused as a spend cap  — stub: not implemented
+  FAIL  toJSON() reports $1.00 spent  — {"spentUsd":0,"spentMicroUsd":0,"calls":0}
+  PASS  unreadable price: 0 signatures  — signatures=0
+  FAIL  unreadable price: refusal names fail-closed  — stub: not implemented
+  PASS  over-ceiling price: not paid  — stub: not implemented
+  PASS  negative control: the old behaviour (50 signatures) is what case 5 rejects
+  FAIL  maxCalls=3 stops at 3 signatures even with budget left  — signatures=0
+  FAIL  the 4th attempt is refused as a call limit  — stub: not implemented
+  FAIL  19 x $0.05 is exactly $0.95, not 0.9500000000000001  — 0
+  FAIL  spend is carried as an integer micro-USD count  — 0
+  FAIL  the 20th $0.05 call still fits a $1.00 budget  — stub: not implemented
+  FAIL  one receipt was appended on settle  — n=0
+  FAIL  receipt.url is the URL that was paid for  — undefined
+  FAIL  receipt.method is the request method  — undefined
+  FAIL  receipt.priceUsd is the price actually charged  — undefined
+  FAIL  receipt.txHash is decoded from PAYMENT-RESPONSE  — undefined
+  FAIL  receipt.network is decoded from PAYMENT-RESPONSE  — undefined
+  FAIL  receipt.source is the configured source tag  — undefined
+  FAIL  receipt.ts is an ISO timestamp taken at settle  — undefined
+  FAIL  the settled response is returned to the caller  — 402
+  PASS  failed settle: no receipt  — n=0
+  PASS  failed settle: nothing charged to the budget  — 0
+  PASS  failed settle: not reported as paid
+  PASS  refused call (over ceiling): no receipt  — n=0
+  FAIL  missing PAYMENT-RESPONSE: txHash is null, not invented  — undefined
+  FAIL  missing PAYMENT-RESPONSE: network is null, not invented  — undefined
+  FAIL  x-402-source defaults to x402-budget on the probe  — null
+  FAIL  x-402-source is also sent on the paid retry  — undefined
+  FAIL  a supplied source overrides the default  — null
+  PASS  the caller own headers survive  — application/json
+  PASS  toJSON round-trips through JSON unchanged  — {"spentUsd":0,"spentMicroUsd":0,"calls":0} vs {"spentUsd":0,"spentMicroUsd":0,"calls":0}
+  FAIL  a restored budget keeps its receipts  — n=0
+  FAIL  a restored budget keeps spending where it left off  — 0
+  FAIL  a restored budget allows exactly the 17 remaining calls  — signatures=0
+  FAIL  summary() names the spend, the cap and the call count  — ""
+  FAIL  unparseable cap (maxSpendUsd) throws instead of disabling the caps  — null
+  FAIL  unparseable cap (maxPriceUsd) throws instead of disabling the caps  — null
+  FAIL  unparseable cap (maxCalls) throws instead of disabling the caps  — null
+  FAIL  unparseable cap (negative maxSpendUsd) throws instead of disabling the caps  — null
+  PASS  no pay function: not paid
+  FAIL  no pay function: refusal says so  — stub: not implemented
+  PASS  no pay function: no receipt  — n=0
+  PASS  the library source references no private-key material
+
+33 budget check(s) FAILED

@@ -1,0 +1,44 @@
+[chrome-mutex:9222] x402-budget-npm-publish-002 acquired lock (id=29864-c2311597)
+{
+  "at": "2026-09-11T01:34:46.216Z",
+  "revoke": false,
+  "rows": [
+    {
+      "text": "Access Tokens Generate New Token Delete Selected Tokens Name Bypass 2FA Created Last used Expires Delete x402-budget-first-publish [npm-masked-display REDACTED — fingerprint sha256/12 f859d4c1e6eb] Sep 10, 2026 Sep 10, 2026 Sep 17, 2026 × dex-data-",
+      "buttons": [
+        "Generate New Token",
+        "Delete Selected Tokens",
+        "x402-budget-first-publish",
+        "×",
+        "dex-data-mcp publish",
+        "×",
+        "📋 Read the Documentation"
+      ]
+    },
+    {
+      "text": "Access Tokens Generate New Token Delete Selected Tokens Name Bypass 2FA Created Last used Expires Delete x402-budget-first-publish [npm-masked-display REDACTED — fingerprint sha256/12 f859d4c1e6eb] Sep 10, 2026 Sep 10, 2026 Sep 17, 2026 × dex-data-",
+      "buttons": [
+        "Generate New Token",
+        "Delete Selected Tokens",
+        "x402-budget-first-publish",
+        "×",
+        "dex-data-mcp publish",
+        "×",
+        "📋 Read the Documentation"
+      ]
+    },
+    {
+      "text": "Access Tokens Generate New Token Delete Selected Tokens Name Bypass 2FA Created Last used Expires Delete x402-budget-first-publish [npm-masked-display REDACTED — fingerprint sha256/12 f859d4c1e6eb] Sep 10, 2026 Sep 10, 2026 Sep 17, 2026 × dex-data-",
+      "buttons": [
+        "Generate New Token",
+        "Delete Selected Tokens",
+        "x402-budget-first-publish",
+        "×",
+        "dex-data-mcp publish",
+        "×",
+        "📋 Read the Documentation"
+      ]
+    }
+  ]
+}
+[chrome-mutex:9222] Released lock (id=29864-c2311597)
