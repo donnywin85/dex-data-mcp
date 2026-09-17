@@ -19,7 +19,7 @@ import { fetchMaybePaid, payEnabled, budget, WALLET_ENV_NAMES } from './pay.mjs'
 //   package.json said 1.5.1 and serverInfo said 1.5.1. The UA is not cosmetic -
 //   the gateway resolves attribution from it, and a stale one made "which build
 //   is actually calling us" unanswerable from the ledger.
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 
 const BASE = (process.env.X402_BASE || 'https://x402.donnyautomation.com').replace(/\/$/, '');
 
@@ -36,310 +36,191 @@ const BASE = (process.env.X402_BASE || 'https://x402.donnyautomation.com').repla
 // and the trailing slash are load-bearing, not decoration.
 const USER_AGENT = `dex-data-mcp/${VERSION} (+https://github.com/donnywin85/dex-data-mcp)`;
 const TIMEOUT_MS = Number(process.env.DEX_MCP_TIMEOUT_MS || 45000);
-const CHAINS = ['bsc', 'polygon', 'arbitrum', 'base', 'avalanche', 'optimism'];
+// ══ THE TOOL LIST IS THE CATALOGUE ═════════════════════════════════════════
+//
+// Every tool below targets ONE route that the gateway actually lists at
+// /.well-known/x402, and there is a tool for every one of them. Nothing else.
+//
+// WHY IT SHRANK FROM 23 TO 13. Until 1.7.0 this server offered a tool per
+// product family across six chains — geocoding, weather, search, holidays, RSS,
+// IP lookup — because the gateway sold 62 priced routes and the coverage gate
+// asked for all of them. Then the demand was measured. Over the whole recorded
+// history, 12 of those 62 routes have either organic buyers or no substitute
+// anywhere in the catalogue; the other 50 have between zero and two calls each,
+// and every one of those calls came from a single wallet.
+// (`x402-gateway/artifacts/x402-catalogue-focus-001/KEEP.md`, the keep rule
+// computed before any file was edited.) On 2026-09-16 the storefront was cut to
+// those 12. This file follows it, because a tool list that advertises a shelf
+// the storefront no longer stocks is a menu with the kitchen closed: the agent
+// spends a turn discovering the gap, and every extra tool costs context in every
+// session whether or not it is ever called.
+//
+// The 50 dropped routes ARE STILL SERVED and still payable at list price by
+// anyone holding the URL. Removing a tool withdrew a recommendation; it did not
+// withdraw a product.
+//
+// RETIRING ROUTES. `geocode`, `reverse_geocode` and `get_weather` are gone for a
+// second, independent reason: the upstreams behind them retire 2026-09-27. A
+// tool that will 404 in eleven days should not ship in a release today.
+//
+// PRICES ARE IN THE DESCRIPTIONS ON PURPOSE. An agent choosing between tools is
+// choosing how to spend its principal's money, and it cannot weigh a cost it has
+// to make a call to discover. Each price below is the route's `x-payment-info`
+// from the gateway's own openapi.json, read 2026-09-16 — not a constant kept in
+// step by hand.
+//
+// FREE FIRST, THEN PAID. Every route here grants 25 free calls per day with no
+// wallet, no signup and no key. After that it answers 402, and this server pays
+// it ONLY if a wallet is configured and every spend cap allows it. See pay.mjs.
 
-const chainProp = {
-  type: 'string', enum: CHAINS,
-  description: 'Chain to query. Defaults to bsc.',
-};
+const FREE_TIER_NOTE = 'First 25 calls/day are free — no wallet, no signup, no key.';
 
 const TOOLS = [
+  // ── DEX market data ──────────────────────────────────────────────────────
   {
-    name: 'get_token_price',
+    name: 'get_base_liquidity',
     description:
-      'Live USD price of any ERC-20 token, read from DEX pools at call time. Accepts a ticker '
-      + '(CAKE, WETH, ARB) or any contract address. Returns the price, the pair it was priced '
-      + 'through, the USD liquidity backing that quote and a confidence rating. Refuses to return '
-      + 'a price backed by a dust pool rather than reporting an unreliable number.',
+      'DEX liquidity, market depth and TVL for a trading pair on BASE, broken down by venue. '
+      + 'Returns per-venue USD liquidity, the pools backing it and the total, so you can tell a '
+      + 'quote backed by a deep pool from one backed by dust. '
+      + `$0.01 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: pair="WETH/USDC".',
     inputSchema: {
       type: 'object',
       properties: {
-        token: { type: 'string', description: 'Ticker (e.g. CAKE) or 0x contract address.' },
-        chain: chainProp,
-      },
-      required: ['token'],
-    },
-    route: (a) => `/price?symbol=${encodeURIComponent(a.token)}`,
-    // an address goes in the token= param instead of symbol=
-    fix: (a, url) => (/^0x[0-9a-fA-F]{40}$/.test(a.token) ? url.replace('symbol=', 'token=') : url),
-  },
-  {
-    name: 'get_liquidity',
-    description:
-      'Market depth and TVL for a trading pair, broken down per venue: how deep the pools are, '
-      + 'which venue holds the most liquidity, and each venue share of total depth.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        pair: { type: 'string', description: 'Pair as SYM/SYM, e.g. WETH/USDC. Either side may be a 0x address.' },
-        chain: chainProp,
+        pair: { type: 'string', description: 'Token pair as SYM/SYM on Base, e.g. WETH/USDC.' },
       },
       required: ['pair'],
     },
-    route: (a) => `/liquidity?pair=${encodeURIComponent(a.pair)}`,
+    route: (a) => `/base/liquidity?pair=${encodeURIComponent(a.pair)}`,
+    priceUsd: 0.01,
   },
   {
-    name: 'get_best_venue',
+    name: 'get_polygon_token_price',
     description:
-      'Which DEX is cheapest to buy on and which pays most to sell into, with the cross-venue '
-      + 'spread in bps and a fee-adjusted arbitrage spread. Smart order routing data.',
-    inputSchema: {
-      type: 'object',
-      properties: { pair: { type: 'string', description: 'Pair as SYM/SYM.' }, chain: chainProp },
-      required: ['pair'],
-    },
-    route: (a) => `/route?pair=${encodeURIComponent(a.pair)}`,
-  },
-  {
-    name: 'get_slippage',
-    description:
-      'Price impact for a SPECIFIC trade size — what a trade will actually get, which a spot price '
-      + 'cannot tell you. Simulates the swap against live reserves on every venue. Price impact and '
-      + 'the pool fee are reported separately. Pool-level only: excludes gas, MEV and multi-hop routing.',
+      'Live USD price of a token on POLYGON PoS, read from DEX pools at call time rather than '
+      + 'from a cached feed. Returns the price, the pair it was priced through, the USD liquidity '
+      + 'backing that quote and a confidence rating; refuses to return a price backed by a dust '
+      + 'pool instead of reporting an unreliable number. '
+      + `$0.01 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: symbol="WMATIC".',
     inputSchema: {
       type: 'object',
       properties: {
-        pair: { type: 'string', description: 'Pair as SYM/SYM.' },
-        amountUsd: { type: 'number', description: 'Trade size in USD, e.g. 10000. Required unless amountIn is given instead — slippage is meaningless without a size.' },
-        amountIn: { type: 'number', description: 'Alternatively, size in units of the first token. Supplying either this or amountUsd is enough.' },
-        chain: chainProp,
+        symbol: {
+          type: 'string',
+          description: 'Token symbol on Polygon PoS, e.g. WMATIC, WETH, WBTC, USDC, USDT, DAI, LINK.',
+        },
+      },
+      required: ['symbol'],
+    },
+    route: (a) => `/polygon/price?symbol=${encodeURIComponent(a.symbol)}`,
+    priceUsd: 0.01,
+  },
+  {
+    name: 'get_avalanche_pool_reserves',
+    description:
+      'Raw AMM pool reserves and live pool state for a pair on AVALANCHE C-Chain: both token '
+      + 'balances, the pool fee in bps, the implied price from those reserves and the pool TVL, '
+      + 'all read at one block height which is returned with the answer. This is the underlying '
+      + 'data the price and depth tools are derived from — use it when you need to compute your '
+      + 'own, or to audit a quote against the chain. '
+      + `$0.01 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: pair="WAVAX/USDC".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pair: { type: 'string', description: 'Token pair as SYM/SYM on Avalanche C-Chain, e.g. WAVAX/USDC.' },
       },
       required: ['pair'],
     },
-    // ★ A SIZE IS NOT OPTIONAL FOR A SLIPPAGE QUOTE.
-    //
-    //   required: ['pair'] alone let a model call get_slippage({pair}) — which
-    //   is exactly what the schema invites — and the route built
-    //   /slippage?pair=… with no size at all. The gateway answers that 400
-    //   missing_amount, so the call spent a free-tier request, or real USDC,
-    //   to buy an error. The identical omission existed in the gateway's own
-    //   OpenAPI, where the trade size was mentioned only in prose.
-    //
-    //   required[] is an AND and cannot say "one of these two", so the
-    //   constraint lives here instead.
-    requireOneOf: ['amountUsd', 'amountIn'],
-    route: (a) => `/slippage?pair=${encodeURIComponent(a.pair)}`
-      + (a.amountUsd != null ? `&amountUsd=${encodeURIComponent(a.amountUsd)}` : '')
-      + (a.amountIn != null ? `&amountIn=${encodeURIComponent(a.amountIn)}` : ''),
+    route: (a) => `/avalanche/reserves?pair=${encodeURIComponent(a.pair)}`,
+    priceUsd: 0.01,
   },
   {
-    name: 'get_liquidity_risk',
+    name: 'find_polygon_arbitrage',
     description:
-      'Pre-trade depth check for a pair: classifies the market DEEP, MODERATE, SHALLOW or VERY_THIN '
-      + 'from live pool TVL, counts routable venues, and flags single-venue markets and wide spreads. '
-      + 'Liquidity depth analysis only — NOT a contract audit and NOT a honeypot check.',
-    inputSchema: {
-      type: 'object',
-      properties: { pair: { type: 'string', description: 'Pair as SYM/SYM.' }, chain: chainProp },
-      required: ['pair'],
-    },
-    route: (a) => `/risk?pair=${encodeURIComponent(a.pair)}`,
-  },
-  {
-    name: 'geocode',
-    description:
-      'Convert a street address, city or place name to latitude/longitude coordinates — worldwide, '
-      + 'via OpenStreetMap. Returns coordinates, display name, structured address parts and a '
-      + 'confidence score. No match returns a clear 404, never a guessed coordinate.',
-    inputSchema: {
-      type: 'object',
-      properties: { query: { type: 'string', description: 'Address or place name, e.g. "Eiffel Tower, Paris".' } },
-      required: ['query'],
-    },
-    route: (a) => `/geocode?q=${encodeURIComponent(a.query)}`,
-  },
-  {
-    name: 'reverse_geocode',
-    description:
-      'Convert latitude/longitude coordinates to the nearest street address and place name — '
-      + 'worldwide, via OpenStreetMap. Coordinates in the ocean or unmapped return 404, never a '
-      + 'fabricated address.',
+      'Scan POLYGON PoS for cross-venue arbitrage right now: pairs whose price differs enough '
+      + 'between DEX venues to be worth acting on, ranked by gross spread. Returns the pair, the '
+      + 'cheap and expensive venue, the spread in bps and the liquidity on each side. Gross, not '
+      + 'net — gas and slippage are yours to subtract. '
+      + `$0.01 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: minSpreadBps=25.',
     inputSchema: {
       type: 'object',
       properties: {
-        lat: { type: 'number', description: 'Latitude, -90..90.' },
-        lon: { type: 'number', description: 'Longitude, -180..180.' },
+        minSpreadBps: { type: 'number', description: 'Minimum gross spread to report, in basis points. Default 10.' },
+        minVenueTvlUsd: { type: 'number', description: 'Ignore venues thinner than this, in USD. Default 1000.' },
+        limit: { type: 'number', description: 'Maximum opportunities returned.' },
       },
-      required: ['lat', 'lon'],
     },
-    route: (a) => `/reverse-geocode?lat=${encodeURIComponent(a.lat)}&lon=${encodeURIComponent(a.lon)}`,
+    route: (a) => `/polygon/scan?${scanQuery(a)}`,
+    priceUsd: 0.01,
   },
   {
-    name: 'get_random',
+    name: 'find_avalanche_arbitrage',
     description:
-      'Cryptographically secure randomness for agents that are deterministic or sandboxed and cannot '
-      + 'generate their own: uniform integers in [min, max] (rejection-sampled, no modulo bias) or raw '
-      + 'random bytes as hex and base64. For nonces, IDs, sampling and shuffling.',
+      'Scan AVALANCHE C-Chain for cross-venue arbitrage right now: pairs whose price differs '
+      + 'enough between DEX venues to be worth acting on, ranked by gross spread. Returns the '
+      + 'pair, the cheap and expensive venue, the spread in bps and the liquidity on each side. '
+      + 'Gross, not net — gas and slippage are yours to subtract. '
+      + `$0.01 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: minSpreadBps=25.',
     inputSchema: {
       type: 'object',
       properties: {
-        bytes: { type: 'number', description: 'Random bytes to return, 1..1024. Default 32 when no integer range is given.' },
-        min: { type: 'number', description: 'With max: return uniform integers in [min, max] inclusive.' },
-        max: { type: 'number', description: 'Upper bound (inclusive) for integer mode.' },
-        count: { type: 'number', description: 'How many integers, 1..1000. Integer mode only.' },
+        minSpreadBps: { type: 'number', description: 'Minimum gross spread to report, in basis points. Default 10.' },
+        minVenueTvlUsd: { type: 'number', description: 'Ignore venues thinner than this, in USD. Default 1000.' },
+        limit: { type: 'number', description: 'Maximum opportunities returned.' },
       },
     },
-    // Always send at least one parameter: a bare path reads as a catalogue
-    // crawler to the gateway and is routed to the paywall instead of free tier.
-    route: (a) => {
-      const q = ['bytes', 'min', 'max', 'count']
-        .filter((k) => a[k] != null)
-        .map((k) => `${k}=${encodeURIComponent(a[k])}`);
-      return `/random?${q.length ? q.join('&') : 'bytes=32'}`;
-    },
+    route: (a) => `/avalanche/scan?${scanQuery(a)}`,
+    priceUsd: 0.01,
   },
   {
-    name: 'url_to_markdown',
+    name: 'get_v4_hook_risk',
     description:
-      'Fetch a public article or PDF URL and return clean Markdown plus title, byline, site name and '
-      + 'word count. HTML is extracted with Firefox reader-mode rules; PDFs return their text layer '
-      + 'with page count. Image-only PDFs and client-rendered app shells return typed errors '
-      + '(no_text_layer, not_extractable) instead of empty output passed off as the article.',
-    inputSchema: {
-      type: 'object',
-      properties: { url: { type: 'string', description: 'Public http(s) URL of an article or PDF.' } },
-      required: ['url'],
-    },
-    route: (a) => `/markdown?url=${encodeURIComponent(a.url)}`,
-  },
-  {
-    name: 'search',
-    description:
-      'Web search — a free-text query returns ranked organic results, each with title, real '
-      + 'destination URL, display URL and snippet. Sponsored rows are excluded. Up to 25 results; '
-      + 'count is a maximum, not a guarantee, because a row whose destination cannot be resolved is '
-      + 'dropped rather than guessed at. Results are not fetched or verified — pair with '
-      + 'url_to_markdown to read any result.',
+      'Uniswap v4 HOOK SECURITY SCAN on Base: decode a hook contract before routing a trade '
+      + 'through it. Decodes all 14 hook permission bits from the address (v4-core Hooks.sol), '
+      + 'flags swap custody, fee-taking and EIP-1967 upgradeable hooks, and verifies source via '
+      + 'Basescan/Sourcify/Blockscout consensus. Returns a custody class '
+      + '(PASSIVE | FLOW_CONTROL | FEE_TAKING | SWAP_CUSTODY | OPAQUE), risk flags and the '
+      + 'verification state. It is capability analysis and NEVER outputs SAFE: it tells you what '
+      + 'the hook is able to do to your trade, not whether its author intends to. '
+      + `$0.01 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: address="0x0000000000000000000000000000000000000080".',
     inputSchema: {
       type: 'object',
       properties: {
-        q: { type: 'string', description: 'Search terms, max 500 characters.' },
-        count: { type: 'number', description: 'Maximum results, 1..25. Default 10.' },
+        address: {
+          type: 'string',
+          description: 'Uniswap v4 hook contract address on Base mainnet, 0x + 40 hex characters.',
+        },
       },
-      required: ['q'],
+      required: ['address'],
     },
-    route: (a) => `/search?q=${encodeURIComponent(a.q)}`
-      + (a.count != null ? `&count=${encodeURIComponent(a.count)}` : ''),
+    route: (a) => `/v4hooks?address=${encodeURIComponent(a.address)}`,
+    priceUsd: 0.01,
   },
-  {
-    name: 'get_weather',
-    description:
-      'Current weather and up to a 7-day forecast for any coordinates worldwide: temperature, '
-      + 'feels-like, humidity, precipitation, wind speed/gusts/direction now, plus daily highs, lows '
-      + 'and precipitation probability. Model forecast, not a station reading — the response says so. '
-      + 'Use the geocode tool first if you have a place name rather than coordinates.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        lat: { type: 'number', description: 'Latitude, -90..90.' },
-        lon: { type: 'number', description: 'Longitude, -180..180.' },
-        days: { type: 'number', description: 'Forecast days, 1..7. Default 3.' },
-      },
-      required: ['lat', 'lon'],
-    },
-    route: (a) => `/weather?lat=${encodeURIComponent(a.lat)}&lon=${encodeURIComponent(a.lon)}`
-      + (a.days != null ? `&days=${encodeURIComponent(a.days)}` : ''),
-  },
-  // ---- second wave: chosen from seller-level x402 receipts ----------------
-  // The category totals the gateway's radar produced turned out to be
-  // double-counted — the biggest sellers carry 10-16 of the 16 category tags
-  // each, so every category reports nearly the whole market's revenue. Seller
-  // rows are clean, and these six are each sold today by a wallet that took
-  // real USDC, with a free keyless upstream behind them.
-  {
-    name: 'get_search_suggestions',
-    description:
-      'What people actually type into a search box for a topic — live search autocomplete, expanded '
-      + 'across question modifiers (how/what/why/is/can/does) and comparison modifiers (vs/or), then '
-      + 'split into suggestions, questions and comparisons. Rows where the engine dropped your term '
-      + 'and answered something else are filtered out and counted. A demand signal for content and '
-      + 'keyword research, not a ranking — search volume is not published upstream and is not invented.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        q: { type: 'string', description: 'Topic or search terms, max 200 characters.' },
-        depth: { type: 'string', enum: ['full', 'basic'], description: '"full" (default) expands across 15 modifiers; "basic" returns completions for the query alone.' },
-        country: { type: 'string', description: 'Two-letter market code, default "us".' },
-        lang: { type: 'string', description: 'Language code, default "en".' },
-      },
-      required: ['q'],
-    },
-    route: (a) => `/suggest?q=${encodeURIComponent(a.q)}`
-      + (a.depth ? `&depth=${encodeURIComponent(a.depth)}` : '')
-      + (a.country ? `&country=${encodeURIComponent(a.country)}` : '')
-      + (a.lang ? `&lang=${encodeURIComponent(a.lang)}` : ''),
-  },
-  {
-    name: 'get_holidays',
-    description:
-      'Public and bank holidays for 100+ countries, and the business-day question behind them. Pass a '
-      + 'date and it answers directly whether that date is a business day and what the next and '
-      + 'previous ones are, counting weekends and holidays and walking across year boundaries. Without '
-      + 'a date it returns the whole year, including which regions observe a non-national holiday. '
-      + 'Regional closures, half-days and market trading calendars are not covered.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        country: { type: 'string', description: 'ISO 3166-1 alpha-2 country code, e.g. US, GB, DE, JP.' },
-        date: { type: 'string', description: 'YYYY-MM-DD. Adds isBusinessDay plus next/previous business days.' },
-        year: { type: 'number', description: 'Calendar year 1975..2100. Default: current year. Ignored when date is given.' },
-      },
-      required: ['country'],
-    },
-    route: (a) => `/holidays?country=${encodeURIComponent(a.country)}`
-      + (a.date ? `&date=${encodeURIComponent(a.date)}` : '')
-      + (a.year != null ? `&year=${encodeURIComponent(a.year)}` : ''),
-  },
-  {
-    name: 'read_feed',
-    description:
-      'Read any public RSS, Atom or RDF feed as clean JSON: feed title, link and description, then '
-      + 'items with title, real destination link, author, categories and the published date both '
-      + 'verbatim and normalised to ISO 8601. Each summary is returned twice — the feed HTML as '
-      + 'published, and a plain-text rendering safe to put straight into a prompt. An unparseable date '
-      + 'is null, never an invented timestamp. Pair with url_to_markdown to read a linked article.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: { type: 'string', description: 'Public http(s) URL of an RSS 2.0, Atom or RDF feed.' },
-        limit: { type: 'number', description: 'Maximum items, 1..100. Default 20.' },
-      },
-      required: ['url'],
-    },
-    route: (a) => `/feed?url=${encodeURIComponent(a.url)}`
-      + (a.limit != null ? `&limit=${encodeURIComponent(a.limit)}` : ''),
-  },
-  {
-    name: 'geolocate_ip',
-    description:
-      'Locate a public IPv4 or IPv6 address: country, region, city, postcode, coordinates, timezone, '
-      + 'ASN, org and ISP. Datacentre/VPN/proxy/Tor detection is returned FIRST because it decides '
-      + 'whether the location means anything — and when the upstream does not supply that detection '
-      + 'the answer says unknown, never clean. An IP locates a network, not a person: the coordinates '
-      + 'are a registered-range centroid, so never present them as where someone is.',
-    inputSchema: {
-      type: 'object',
-      properties: { ip: { type: 'string', description: 'Public IPv4 or IPv6 address. Private and reserved ranges are refused.' } },
-      required: ['ip'],
-    },
-    route: (a) => `/ip?ip=${encodeURIComponent(a.ip)}`,
-  },
+
+  // ── Counterparty and reference data ──────────────────────────────────────
   {
     name: 'lookup_lei',
     description:
       'Look up a company in the GLEIF Legal Entity Identifier golden copy BY NAME, not just by '
       + 'identifier — knowing the LEI already is the hard part. Returns the LEI, registered legal '
       + 'name, previous names, legal form, jurisdiction, legal and headquarters addresses and the '
-      + 'registration record. Lapsed, retired and annulled entities come back flagged rather than '
-      + 'filtered out: a hidden record and no record are indistinguishable to the caller.',
+      + 'registration record. Lapsed, retired and annulled entities come back FLAGGED rather than '
+      + 'filtered out: a hidden record and no record are indistinguishable to the caller. '
+      + `$0.03 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: q="Apple Inc.".',
     inputSchema: {
       type: 'object',
       properties: {
-        // The old text here read "include the suffix for precision, e.g. Apple
-        // Inc." — advice that only existed because the search ranked a street
-        // address above the company. Results are ranked now, so a bare brand
-        // name works and the instruction to already know the answer is gone.
-        q: { type: 'string', description: 'Legal entity name, max 200 chars. A bare brand name works — "Apple" finds Apple Inc. Results are ranked by name match across the legal name and any alternative names.' },
+        q: {
+          type: 'string',
+          description: 'Legal entity name, max 200 chars. A bare brand name works — "Apple" finds Apple Inc. Results are ranked across the legal name and any alternative names.',
+        },
         lei: { type: 'string', description: 'Exact 20-character LEI, for a single record instead of a name search.' },
         limit: { type: 'number', description: 'Maximum name-search results, 1..50. Default 10.' },
       },
@@ -349,187 +230,202 @@ const TOOLS = [
     route: (a) => (a.lei
       ? `/lei?lei=${encodeURIComponent(a.lei)}`
       : `/lei?q=${encodeURIComponent(a.q || '')}${a.limit != null ? `&limit=${encodeURIComponent(a.limit)}` : ''}`),
+    priceUsd: 0.03,
+  },
+  {
+    name: 'get_company_dossier',
+    description:
+      'COUNTERPARTY DOSSIER for one legal entity in a single call: who it is (GLEIF), whether it '
+      + 'is sanctioned (OFAC name screening) and whether it is an SEC registrant, joined and '
+      + 'returned together. Use this instead of calling lookup_lei and screening separately when '
+      + 'the question is "can we deal with this party". A name match is a REVIEW ITEM, never a '
+      + 'determination — the score and the matched alias come back with it. '
+      + `$0.05 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: q="Apple Inc." or ticker="AAPL".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        q: { type: 'string', description: 'Legal entity name, max 200 chars. Include the suffix for a precise match, e.g. "Apple Inc." rather than "Apple".' },
+        lei: { type: 'string', description: 'Exact 20-character LEI, for an unambiguous subject. Use instead of q.' },
+        ticker: { type: 'string', description: 'Exchange ticker, e.g. AAPL. Resolves the SEC block directly and supplies the registered name to search GLEIF with.' },
+        cik: { type: 'string', description: 'SEC Central Index Key, 1 to 10 digits. Alternative to ticker; cik wins if both are sent.' },
+        minScore: { type: 'number', description: 'OFAC name-match threshold 0.1..1, default 0.85. 1.0 is an exact name-token match. Lower it to WIDEN the review set, never to narrow it.' },
+      },
+    },
+    requireOneOf: ['q', 'lei', 'ticker', 'cik'],
+    route: (a) => `/company?${companyQuery(a)}`,
+    priceUsd: 0.05,
   },
   {
     name: 'get_treasury_yield_curve',
     description:
-      'The US Treasury par yield curve for any published business day — every constant-maturity rate '
-      + 'from 1 month to 30 years — plus the spreads and the inversion flag, because the real question '
-      + 'is whether the curve is inverted rather than what fourteen numbers are. 2s10s, 3m10y and '
-      + '5s30s are computed for you. A tenor Treasury did not publish that day is null, never zero. '
-      + 'Nominal CMT rates: not real yields and not zero-coupon spot rates.',
+      'US Treasury par yield curve: the full set of constant-maturity rates for one business day, '
+      + 'from 1 month to 30 years, as published by the Treasury. The risk-free curve behind any '
+      + 'discounting, spread or carry calculation. A non-publication date returns 404 with the '
+      + 'available range rather than the nearest guess. '
+      + `$0.03 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: no arguments for the latest curve, or date="2026-09-02".',
     inputSchema: {
       type: 'object',
       properties: {
-        date: { type: 'string', description: 'YYYY-MM-DD business day. Default: the latest published curve. A non-publication day returns the available range, not a nearest guess.' },
+        date: { type: 'string', description: 'YYYY-MM-DD business day, for a specific past day. Omit for the most recent published curve.' },
       },
     },
-    // A bare path reads as a catalogue crawler upstream and is routed to the
-    // paywall rather than the free tier, so the no-date case still sends a
-    // parameter. Same reason as get_random's bytes=32 default.
     route: (a) => (a.date ? `/treasury?date=${encodeURIComponent(a.date)}` : '/treasury?latest=1'),
+    priceUsd: 0.03,
+  },
+
+  // ── SEC EDGAR change oracles ─────────────────────────────────────────────
+  //
+  // All three are DELTAS, not dumps. `since` is a required, INCLUSIVE cursor:
+  // pass the date you last read and you get what has landed since. That is the
+  // whole product — polling EDGAR yourself means fetching the same index over
+  // and over to find the one line that changed.
+  {
+    name: 'get_sec_filings',
+    description:
+      'SEC EDGAR FILING CHANGE ORACLE for one issuer: everything this company has filed with the '
+      + 'SEC since your cursor, as a delta rather than a dump. Returns accession number, form '
+      + 'type, filing and period dates, and the document URL. Amendments are matched with their '
+      + 'original (10-K also matches 10-K/A). Reports `matched` and `truncated` so a cut-off delta '
+      + 'is never mistaken for a complete one. '
+      + `$0.05 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: ticker="AAPL", since="2026-09-01", forms="8-K".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticker: { type: 'string', description: 'Exchange ticker, e.g. AAPL. Send cik instead when you have it: cik is EDGAR identity, ticker is a convenience. If both are sent, cik wins.' },
+        since: { type: 'string', description: 'ISO date YYYY-MM-DD. INCLUSIVE cursor: filings on this date are returned. Required — this route returns a delta, not a dump.' },
+        cik: { type: 'string', description: 'SEC Central Index Key, 1 to 10 digits, zero padding optional (e.g. 320193 or 0000320193). Alternative to ticker.' },
+        forms: { type: 'string', description: 'Comma separated form filter, e.g. "10-K,10-Q,8-K". A form also matches its /A amendment; "8-K/A" alone matches only amendments.' },
+        limit: { type: 'number', description: 'Maximum filings returned, 1 to 200. Default 50.' },
+      },
+      required: ['since'],
+    },
+    requireOneOf: ['ticker', 'cik'],
+    route: (a) => `/edgar/filings?${edgarQuery(a, 'forms')}`,
+    priceUsd: 0.05,
   },
   {
+    name: 'get_sec_events',
+    description:
+      'SEC EDGAR MATERIAL EVENT ORACLE for one issuer: which material events this company has '
+      + 'reported since your cursor, decoded from its 8-K item codes rather than left as raw '
+      + 'filings. Returns the item code, what it means, and the filing it came from. Filter to the '
+      + 'events you care about — 1.01 material agreement, 5.02 officer departure, 2.06 impairment. '
+      + 'A malformed code returns 400 bad_items rather than being silently ignored. '
+      + `$0.05 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: ticker="TSLA", since="2026-09-01", items="5.02".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticker: { type: 'string', description: 'Exchange ticker, e.g. TSLA. Send cik instead when you have it. If both are sent, cik wins.' },
+        since: { type: 'string', description: 'ISO date YYYY-MM-DD. INCLUSIVE cursor: events filed on this date are returned. Required — this route returns a delta, not a dump.' },
+        cik: { type: 'string', description: 'SEC Central Index Key, 1 to 10 digits (e.g. 1318605). Alternative to ticker.' },
+        items: { type: 'string', description: 'Comma separated 8-K item codes to filter on, e.g. "1.01,5.02,2.06". A filing matches if it carries ANY of them.' },
+        limit: { type: 'number', description: 'Maximum events returned, 1 to 200. Default 50.' },
+      },
+      required: ['since'],
+    },
+    requireOneOf: ['ticker', 'cik'],
+    route: (a) => `/edgar/events?${edgarQuery(a, 'items')}`,
+    priceUsd: 0.05,
+  },
+  {
+    name: 'get_sec_insiders',
+    description:
+      'SEC EDGAR OWNERSHIP CHANGE ORACLE for one issuer: who has reported a change in their '
+      + 'position since your cursor. Covers Forms 3, 4, 5, SC 13D and SC 13G and nothing outside '
+      + 'that set. Returns the reporting owner, their relationship to the issuer, the form and the '
+      + 'filing. An amendment is matched with its original and is NOT a second transaction. Active '
+      + 'issuers file many Form 4s, so `matched` and `truncated` tell you when you hit the cap. '
+      + `$0.05 USDC per call after the free tier. ${FREE_TIER_NOTE} `
+      + 'Example: ticker="NVDA", since="2026-09-01", forms="4".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ticker: { type: 'string', description: 'Exchange ticker, e.g. NVDA. Send cik instead when you have it. If both are sent, cik wins.' },
+        since: { type: 'string', description: 'ISO date YYYY-MM-DD. INCLUSIVE cursor: ownership filings on this date are returned. Required — this route returns a delta, not a dump.' },
+        cik: { type: 'string', description: 'SEC Central Index Key, 1 to 10 digits (e.g. 1045810). Alternative to ticker.' },
+        forms: { type: 'string', description: 'Comma separated filter within the ownership set, e.g. "4" or "SC 13D". A form also matches its /A amendment.' },
+        limit: { type: 'number', description: 'Maximum filings returned, 1 to 200. Default 50.' },
+      },
+      required: ['since'],
+    },
+    requireOneOf: ['ticker', 'cik'],
+    route: (a) => `/edgar/insiders?${edgarQuery(a, 'forms')}`,
+    priceUsd: 0.05,
+  },
+
+  // ── Local, free, no network ──────────────────────────────────────────────
+  {
     name: 'get_spend_budget',
-    description: 'How much this session has spent on paid calls, and the caps in force. '
-      + 'Free, local, and makes the cost of continuing visible before it is incurred.',
+    description:
+      'How much this session has spent on paid calls, and the caps in force. Free, local, no '
+      + 'network: it makes the cost of continuing visible BEFORE it is incurred. Call it first if '
+      + 'you are about to run a loop over paid tools.',
     inputSchema: { type: 'object', properties: {} },
     local: () => budget(),
   },
-  {
-    name: 'get_pool_reserves',
-    description:
-      'Raw pool reserves for a pair on every indexed venue: the two token balances, the pool fee in '
-      + 'bps, the implied price from those reserves and the pool TVL, all read at one block height '
-      + 'which is returned with the answer. This is the underlying data the price, depth and slippage '
-      + 'tools are computed from — use it when you want to do your own maths rather than take ours.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        pair: { type: 'string', description: 'Pair as SYM/SYM, e.g. WBNB/USDT. Either side may be a 0x address.' },
-        chain: chainProp,
-      },
-      required: ['pair'],
-    },
-    route: (a) => `/reserves?pair=${encodeURIComponent(a.pair)}`,
-  },
-  {
-    name: 'find_arbitrage',
-    description:
-      'Scan a chain for cross-venue arbitrage right now: pairs whose price differs enough between '
-      + 'DEXes to be worth trading, ranked by GROSS USD AT THE OPTIMAL TRADE SIZE — not by raw '
-      + 'spread, because a wide spread on a tiny pool is not an opportunity. Returns an empty list '
-      + 'when there is nothing, which is a real answer. Excludes gas, MEV and execution risk.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        minSpreadBps: { type: 'number', description: 'Minimum cross-venue spread in basis points. Default 20.' },
-        chain: chainProp,
-      },
-    },
-    // Always sends minSpreadBps: a parameterless request is routed to the paywall
-    // as a catalogue crawler and can never reach the free tier — the defect that
-    // left /gas with 3,456 challenges and one free call.
-    route: (a) => `/scan?minSpreadBps=${encodeURIComponent(a.minSpreadBps ?? 20)}`,
-  },
-  {
-    name: 'get_gas',
-    description:
-      'Live gas prices across BNB Chain, Polygon, Arbitrum, Base, Avalanche and Optimism, priced in '
-      + 'USD and ranked cheapest-first. Returns gas price in gwei, base fee, and what a transfer, an '
-      + 'ERC-20 transfer and a swap actually cost in dollars on each chain. Gwei is NOT comparable '
-      + 'across chains because the gas token differs in price, so USD is the only ranking that says '
-      + 'where a transaction really costs least. For bridging, routing and execution timing.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        chain: {
-          type: 'string',
-          enum: ['all', ...CHAINS],
-          description: 'One chain, or "all" for every chain ranked cheapest-first. Defaults to all.',
-        },
-      },
-    },
-    // Always sends chain=, never a bare /gas. The gateway treats a PARAMETERLESS
-    // request as a catalogue crawler and routes it straight to the paywall, so a
-    // bare call can never reach the free tier — /gas recorded 3,456 challenges
-    // and exactly ONE free call before anyone noticed. A tool that cannot be
-    // tried for free cannot convert.
-    route: (a) => `/gas?chain=${encodeURIComponent(a.chain || 'all')}`,
-    // /gas has no per-chain paths — it takes ?chain= and accepts `all`. Without
-    // this the shared handler would rewrite chain into a path prefix and ask for
-    // /base/gas, which 404s.
-    chainInQuery: true,
-  },
-  {
-    name: 'list_chains',
-    description: 'Supported chains, their indexed tokens and venues. Free, and the right first call '
-      + 'if you are unsure which chain or ticker to use.',
-    inputSchema: { type: 'object', properties: {} },
-    route: () => '/chains',
-    free: true,
-  },
-  // ══ PAID TOOLS ═══════════════════════════════════════════════════════════
-  //
-  // P1 (forensics 2026-08-22 section 5): COLLAPSE TO ONE CLIENT. This tool was
-  // the whole of the separate `bsc-dex-spread-mcp` package, which drew 159 npm
-  // downloads in 30 days against this package's 2,070 - a 13x gap, re-measured
-  // 2026-08-25. Every proven earner in the measured economy ships ONE client
-  // holding free and paid surfaces rather than two packages; splitting them put
-  // the paid surface on the shelf nobody walks past.
-  //
-  // It sits in the SAME array as the free tools on purpose. There is no separate
-  // paid client, no second install, no second config: the tool 402s, and if a
-  // wallet is configured the existing spend-capped pay path settles it.
-  {
-    name: 'get_dex_spread',
-    description:
-      'PAID ($0.01 USDC/call, no free tier). Real-time cross-DEX price & spread for BSC: '
-      + 'per-venue prices across PancakeSwap v2, PancakeSwap v3 (all fee tiers), Biswap and '
-      + 'ApeSwap in one call, plus best buy/sell venue, gross arbitrage spread (bps + USD), '
-      + 'optimal trade size, liquidity and block number. '
-      + 'Params: pair=SYM/SYM (e.g. WBNB/USDC), optional fee=v3 tier. '
-      + 'Needs a funded wallet in ' + WALLET_ENV_NAMES.join(' or ') + '; without one it '
-      + 'returns payment instructions and spends nothing. '
-      + 'Cheaper alternatives in this same server, free for 25 calls/day and no wallet: '
-      + '"get_liquidity" for per-venue depth and "find_arbitrage" for a cross-venue spread scan.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        pair: {
-          type: 'string',
-          description: 'Token pair as SYM/SYM; first symbol is the USD-priceable side (e.g. WBNB/USDC, WBNB/USDT, CAKE/WBNB).',
-        },
-        fee: {
-          type: 'string',
-          description: 'Optional PancakeSwap v3 fee tier to restrict the v3 probe (e.g. 100, 500, 2500, 10000). Omit to probe all v3 tiers + v2.',
-        },
-      },
-      required: ['pair'],
-    },
-    // BSC only - the upstream has no per-chain paths for this route, so the tool
-    // declares no `chain` property and never takes the /<chain> prefix.
-    route: (a) => {
-      const qs = new URLSearchParams({ pair: a.pair });
-      if (a.fee) qs.set('fee', String(a.fee));
-      return `/call?${qs.toString()}`;
-    },
-    // ★ NO FREE TIER ON THIS ROUTE. The gateway grants its 25/day allowance to
-    //   the 21 PRODUCTS routes; /call is not one of them. Saying "your free
-    //   allowance ran out" here would be a lie, and it would send the user
-    //   looking for a reset that never comes. [derive-or-delete]
-    paidOnly: true,
-  },
 ];
+
+// ── Query builders ─────────────────────────────────────────────────────────
+//
+// Kept out of the tool objects so each `route` stays one readable line, and so
+// the "omit what the caller omitted" rule is written once. An `undefined`
+// interpolated into a query string becomes the literal text "undefined", which
+// the gateway then answers — and charges for. [derive-or-delete]
+function put(qs, key, value) {
+  if (value === undefined || value === null || value === '') return;
+  qs.set(key, String(value));
+}
+
+function scanQuery(a) {
+  const qs = new URLSearchParams();
+  // minSpreadBps is required upstream and must always be present: a scan URL with
+  // no query at all also loses the free tier, which the gateway grants only to
+  // requests carrying a parameter.
+  qs.set('minSpreadBps', String(a.minSpreadBps ?? 10));
+  put(qs, 'minVenueTvlUsd', a.minVenueTvlUsd);
+  put(qs, 'limit', a.limit);
+  return qs.toString();
+}
+
+function companyQuery(a) {
+  const qs = new URLSearchParams();
+  // cik wins over ticker upstream; send exactly what the caller gave and let the
+  // gateway apply its own precedence rather than second-guessing it here.
+  for (const k of ['q', 'lei', 'ticker', 'cik', 'minScore']) put(qs, k, a[k]);
+  return qs.toString();
+}
+
+function edgarQuery(a, filterKey) {
+  const qs = new URLSearchParams();
+  for (const k of ['ticker', 'cik', 'since', filterKey, 'limit']) put(qs, k, a[k]);
+  return qs.toString();
+}
 
 // The paid routes sit behind an x402 paywall. Without a wallet an MCP client gets
 // a 402, so say exactly that and what it costs, rather than surfacing a bare HTTP
 // error the model has to guess at.
 function paywallMessage(tool, url, reason) {
   const b = budget();
-  // Two genuinely different situations, and conflating them wastes the user's
-  // time. A free-tier tool 402s because TODAY's allowance is gone and will work
-  // again tomorrow; a paidOnly tool 402s because it never had an allowance and
-  // never will. [derive-or-delete]
-  const lines = tool.paidOnly
-    ? [
-      `"${tool.name}" is a paid tool: $0.01 USDC per call on Base, and it has no free tier.`,
-      '',
-      `  ${url}`,
-      '',
-      'Free alternatives in this same server (25 calls/day, no wallet needed):',
-      '  get_liquidity   - per-venue depth and TVL for a pair',
-      '  find_arbitrage  - cross-venue spread scan',
-      '',
-    ]
-    : [
-      'Daily free allowance used up for this caller, so this call needs payment.',
-      '',
-      `  ${url}`,
-      '',
-      'The allowance resets every 24h. Still free: the "list_chains" tool.',
-      '',
-    ];
+  // ★ SAY WHAT IT COSTS AND WHEN IT COMES BACK. Every tool in 1.7.0 has a free
+  //   tier, so a 402 here always means TODAY's allowance is spent and always
+  //   resets — there is no longer a paid-only tool whose 402 is permanent, and
+  //   promising a reset that never comes is the failure this text avoids.
+  //   The price is the tool's own declared price, not a constant: quoting $0.01
+  //   at an /edgar route would understate it fivefold. [derive-or-delete]
+  const lines = [
+    `Daily free allowance used up for this caller, so this call needs payment: `
+    + `$${tool.priceUsd.toFixed(2)} USDC on Base.`,
+    '',
+    `  ${url}`,
+    '',
+    'The allowance resets every 24h. Always free, and never a network call:',
+    '  get_spend_budget - what this session has spent and the caps in force',
+    '',
+  ];
   if (payEnabled()) {
     lines.push(`A wallet IS configured, but this call was not paid: ${reason || 'unknown'}.`,
       `Budget so far: $${b.spentUsd} of $${b.maxSpendUsd} across ${b.calls} paid call(s).`,
@@ -556,13 +452,21 @@ async function callTool(name, args) {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) throw new Error(`unknown tool: ${name}`);
   const a = args || {};
-  // Most tools express chain as a PATH PREFIX (/base/price) because that is how
-  // each chain gets its own resource URL upstream. /gas is the exception: it has
-  // no per-chain paths, it takes ?chain= and accepts `all`. A tool sets
-  // chainInQuery to opt out of both the prefixing and the CHAINS-only check.
-  const chainValues = tool.chainInQuery ? [...CHAINS, 'all'] : CHAINS;
-  if (a.chain && !chainValues.includes(a.chain)) {
-    throw new Error(`unknown chain "${a.chain}". Supported: ${chainValues.join(', ')}`);
+  // ★ NO `chain` ARGUMENT, AND NO CHAIN PREFIXING, SINCE 1.7.0.
+  //
+  //   Until 1.6.1 a tool named a product family (/price) and took a `chain`
+  //   argument that the handler turned into a path prefix (/polygon/price). That
+  //   made one tool stand for six URLs, of which the gateway now lists one — so
+  //   five of the six choices an agent could make led somewhere unlisted, and
+  //   the tool could not state a price because each chain was a separate
+  //   resource. Every tool now targets exactly ONE listed route and writes the
+  //   whole path itself. `chain` is gone from every schema; a client still
+  //   sending one is told so rather than having it silently ignored.
+  if (a.chain !== undefined) {
+    throw new Error(
+      `${name} takes no "chain" argument: each tool targets one chain's route. `
+      + 'Pick the tool for the chain you want. Nothing was requested and nothing was spent.',
+    );
   }
   if (tool.local) return { text: JSON.stringify(tool.local(), null, 2), isError: false };
 
@@ -607,14 +511,10 @@ async function callTool(name, args) {
     );
   }
 
-  let route = tool.route(a);
-  if (tool.fix) route = tool.fix(a, route);
-  // chain is a path prefix, not a query param — that is how each chain gets its
-  // own resource URL upstream. Unless the tool puts it in the query (see
-  // chainInQuery): prefixing /gas produced `/base/gas`, which does not exist,
-  // and every chain except the default 404'd.
-  const prefix = !tool.chainInQuery && a.chain && a.chain !== 'bsc' ? `/${a.chain}` : '';
-  const url = `${BASE}${prefix}${route}`;
+  // The route template writes the whole path, prefix included. There is nothing
+  // left for the handler to rewrite, which is the point: the URL a tool requests
+  // is the URL its description names and the URL the gateway lists.
+  const url = `${BASE}${tool.route(a)}`;
 
   // Identify the client so usage is attributable to this npm package rather than
   // lost among anonymous traffic - this is how we learn which channel works.
@@ -671,6 +571,30 @@ async function handle(req) {
   const err = new Error(`method not found: ${method}`);
   err.code = -32601;
   throw err;
+}
+
+// ★ WHICH GATEWAY ROUTES DOES THIS BUILD ACTUALLY TARGET?
+//
+//   The coverage gate has to answer that, and it used to answer it by running a
+//   regex over this file's source. A regex reads what the source LOOKS like; a
+//   route is what the function RETURNS. Those diverged the moment routes stopped
+//   being one template literal each — a path assembled from a helper is
+//   invisible to the regex, so a tool could target an unlisted route and the
+//   gate would report it as covered. So ask the route functions themselves.
+//
+//   Runs and exits BEFORE readline is attached, so it cannot interfere with a
+//   real MCP session, and it makes no network call.
+if (process.env.DEX_MCP_DUMP_ROUTES) {
+  for (const t of TOOLS) {
+    // Local tools have no route at all; say so rather than omitting them, or a
+    // reconciliation cannot tell "no route" from "tool missing".
+    if (!t.route) { process.stdout.write(`${t.name}\t(local)\n`); continue; }
+    // Arguments are irrelevant to the PATH: every tool puts its arguments in the
+    // query string, so the path is fixed. Call with an empty object and cut at
+    // the '?'.
+    process.stdout.write(`${t.name}\t${t.route({}).split('?')[0]}\n`);
+  }
+  process.exit(0);
 }
 
 const rl = createInterface({ input: process.stdin });

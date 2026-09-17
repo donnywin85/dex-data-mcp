@@ -111,18 +111,36 @@ jobs:
             }
           '
 
+      # ★ The release gates are inline `node -e '...'` scripts, and bash ends one
+      #   at the first apostrophe. A comment reading "the gateway's catalogue"
+      #   truncated the smoke test and it failed on a PUSHED TAG, with the version
+      #   already spent. The YAML was valid and the node source read as valid; the
+      #   defect lived only in the string bash builds. Build it here and parse it.
+      - name: inline node -e blocks in the workflows still parse
+        run: node scripts/check-workflow-quoting.mjs
+
       - name: argument validation over real stdio JSON-RPC (no network)
         run: node test/arg-validation.test.mjs
 
-      # ★ THESE EXISTED AND NOTHING RAN THEM. test/budget.test.mjs was written
-      #   on 2026-09-09 to pin the fail-closed spend caps and was never wired
-      #   into any workflow, so the caps were only as good as whoever remembered
-      #   to run the file by hand. A test nobody runs is documentation.
-      #
-      #   Both suites are offline by construction — they inject a fake payer and
-      #   never touch a wallet, a key or a network.
-      - name: spend caps still fail closed (dex-data-mcp adapter)
+      # ★ budget.test.mjs EXISTED SINCE 2026-09-09 AND NO WORKFLOW RAN IT.
+      #   It is the file that pins the fail-closed spend caps — the ones that stop
+      #   an unreadable price from being paid — and for a week the caps were only
+      #   as good as whoever remembered to run it by hand. A test nothing executes
+      #   is documentation. [fail-closed]
+      - name: spend-cap accounting (no wallet, no network)
         run: node test/budget.test.mjs
 
+      # Both suites below replay a RECORDED 402 challenge over loopback. No live
+      # payment, no funds, no gateway: CI cannot go red because an upstream is
+      # slow, and it cannot spend anything if it goes wrong.
+      - name: every tool against a recorded 402 challenge (loopback only)
+        run: node test/paywall-402.test.mjs
+
+      - name: the per-call ceiling refuses each price point (loopback only)
+        run: node test/spend-cap.test.mjs
+
+      # ★ The LIBRARY has its own suite, and running the adapter's is not running
+      #   it. x402-budget ships from packages/ as its own npm package: its caps
+      #   are the ones a buyer outside this repo gets. Offline by construction.
       - name: spend caps and receipts (x402-budget library)
         run: node packages/x402-budget/test/budget.test.mjs

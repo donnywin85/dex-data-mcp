@@ -12,17 +12,48 @@
 // that puts the cost of someone else's bug on us, and a model-driven client
 // dropping an argument is the ordinary case rather than the exotic one.
 //
-// No network: every assertion here is about calls that must NOT be made, so a
-// blocked call proves itself by never reaching the gateway. The tools that are
-// expected to pass validation are checked by their ERROR TEXT, not by a
-// successful fetch, so this suite cannot go red because a free tier is spent
-// or an upstream is slow.
+// No network beyond loopback: a blocked call proves itself by never reaching
+// the replay server, and a call that passes validation reaches a RECORDED 402
+// rather than production. This file used to say "no network" while calling the
+// live gateway; see the replay block below for what that cost.
 
 import { spawn } from 'node:child_process';
+import http from 'node:http';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+// ★ THIS SUITE USED TO CALL THE LIVE GATEWAY, AND ITS HEADER SAID IT DID NOT.
+//
+//   The claim was "no network: every assertion here is about calls that must NOT
+//   be made". True of the blocked cases. But the cases asserting that a call
+//   PASSES validation pass it all the way through to fetch, and those went to
+//   production: five local runs of this file put 25 rows in the live ledger,
+//   every one tagged `src: npm-client` and `client: dex-data-mcp`.
+//
+//   Two costs, and the second is the serious one. It spends the 25-a-day free
+//   tier this package promises its users. And `npm-client` is the bucket a live
+//   experiment uses to count arrivals through this package — so the test suite
+//   was writing into the very instrument that measures the thing it tests. Our
+//   own fleet's calls are never demand, and a sensor that cannot tell them apart
+//   is worse than no sensor.
+//
+//   So the suite now runs against a loopback replay of the recorded challenge.
+//   The assertions are unchanged: a paywall reply is not the blocked marker
+//   either, so "passes validation" still means exactly what it meant.
+const fixture = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/fixtures/challenge-402.json'), 'utf8'));
+const replayHits = [];
+const replay = http.createServer((req, res) => {
+  replayHits.push(new URL(req.url, 'http://127.0.0.1').pathname);
+  const rec = fixture.routes[new URL(req.url, 'http://127.0.0.1').pathname];
+  if (!rec) { res.writeHead(404, { 'content-type': 'application/json' }); res.end('{}'); return; }
+  res.writeHead(rec.status, rec.headers);
+  res.end(rec.body);
+});
+await new Promise((r) => replay.listen(0, '127.0.0.1', r));
+const REPLAY_BASE = `http://127.0.0.1:${replay.address().port}`;
 
 let failures = 0;
 const check = (name, pass, detail = '') => {
@@ -30,7 +61,10 @@ const check = (name, pass, detail = '') => {
   if (!pass) failures += 1;
 };
 
-const child = spawn(process.execPath, ['server.mjs'], { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] });
+const childEnv = { ...process.env, X402_BASE: REPLAY_BASE };
+delete childEnv.DEX_WALLET_KEY;
+delete childEnv.EVM_PRIVATE_KEY;
+const child = spawn(process.execPath, ['server.mjs'], { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'], env: childEnv });
 let buf = '';
 const pending = new Map();
 child.stdout.on('data', (d) => {
@@ -69,42 +103,111 @@ const callText = async (name, args) => {
 // BEFORE any request — which is the whole point, since a blocked call leaves no
 // other evidence.
 const BLOCKED = /Nothing was requested and nothing was spent/;
+// ★ A NEGATIVE ASSERTION NEEDS A POSITIVE PRECONDITION.
+//
+//   The "passes validation" cases below assert that a call is NOT blocked. That
+//   is also true of a tool that does not exist — an unknown name answers
+//   "unknown tool", which is not the blocked marker either. Three such cases
+//   (get_slippage twice, get_random once) went on passing after 1.7.0 deleted
+//   the tools they named, reporting green about a surface that had gone. So
+//   every name used below is first proved to be published. [positive-probe]
+const published = new Set(tools.map((t) => t.name));
+const mustExist = (name) => {
+  const ok = published.has(name);
+  if (!ok) check(`${name} is published by tools/list`, false, 'not in tools/list');
+  return ok;
+};
 
+// ── required arguments are enforced, not merely declared ───────────────────
 check('a missing required argument is blocked, not sent as undefined',
-  BLOCKED.test(await callText('get_token_price', {})));
+  mustExist('get_polygon_token_price') && BLOCKED.test(await callText('get_polygon_token_price', {})));
 check('an EMPTY required argument is blocked too',
-  BLOCKED.test(await callText('get_token_price', { token: '' })));
+  mustExist('get_polygon_token_price') && BLOCKED.test(await callText('get_polygon_token_price', { symbol: '' })));
 check('a partially-supplied requirement names the missing one',
-  /"lon"/.test(await callText('get_weather', { lat: 40.7 })));
+  mustExist('get_sec_filings') && /"since"/.test(await callText('get_sec_filings', { ticker: 'AAPL' })));
 
-// "one of these" is not expressible with inputSchema.required, which is an AND.
+// ── "one of these", which inputSchema.required cannot express (it is an AND) ─
 check('lookup_lei with neither q nor lei is blocked',
-  BLOCKED.test(await callText('lookup_lei', {})));
+  mustExist('lookup_lei') && BLOCKED.test(await callText('lookup_lei', {})));
 check('lookup_lei with an empty q is blocked',
-  BLOCKED.test(await callText('lookup_lei', { q: '' })));
+  mustExist('lookup_lei') && BLOCKED.test(await callText('lookup_lei', { q: '' })));
 check('lookup_lei WITH a name passes validation',
-  !BLOCKED.test(await callText('lookup_lei', { q: 'Apple' })));
+  mustExist('lookup_lei') && !BLOCKED.test(await callText('lookup_lei', { q: 'Apple' })));
 
-// A slippage quote without a trade size is not a cheaper answer, it is a paid
-// 400 — the gateway rejects it with missing_amount. required:['pair'] alone
-// actively invited that call.
-check('get_slippage without a trade size is blocked',
-  BLOCKED.test(await callText('get_slippage', { pair: 'WBNB/USDT' })));
-check('get_slippage with amountUsd passes validation',
-  !BLOCKED.test(await callText('get_slippage', { pair: 'WBNB/USDT', amountUsd: 10000 })));
-check('get_slippage with amountIn passes validation',
-  !BLOCKED.test(await callText('get_slippage', { pair: 'WBNB/USDT', amountIn: 5 })));
+// An EDGAR route needs BOTH a subject (ticker or cik) and a cursor. Supplying
+// the cursor alone is not a cheaper answer, it is a paid 400.
+check('get_sec_events with a cursor but no subject is blocked',
+  mustExist('get_sec_events') && BLOCKED.test(await callText('get_sec_events', { since: '2026-09-01' })));
+check('get_sec_events with cik instead of ticker passes validation',
+  mustExist('get_sec_events') && !BLOCKED.test(await callText('get_sec_events', { cik: '1318605', since: '2026-09-01' })));
+check('get_company_dossier with none of q/lei/ticker/cik is blocked',
+  mustExist('get_company_dossier') && BLOCKED.test(await callText('get_company_dossier', {})));
 
-// Tools whose arguments are genuinely optional must not be caught by any of the
-// above — a false positive here would break working calls.
-for (const [name, args] of [['get_random', {}], ['find_arbitrage', {}], ['get_gas', {}], ['get_treasury_yield_curve', {}]]) {
-  check(`${name} with no arguments still passes validation`, !BLOCKED.test(await callText(name, args)));
+// ── 1.7.0: `chain` is gone, and a client still sending one is told so ───────
+//
+// Silently ignoring it would send a Polygon question to a Base route and charge
+// for the answer.
+check('a leftover chain argument is refused, not ignored',
+  mustExist('get_base_liquidity')
+  && /takes no "chain" argument/.test(await callText('get_base_liquidity', { pair: 'WETH/USDC', chain: 'polygon' })));
+check('refusing a chain argument spends nothing',
+  mustExist('get_base_liquidity')
+  && BLOCKED.test(await callText('get_base_liquidity', { pair: 'WETH/USDC', chain: 'polygon' })));
+
+// ── tools whose arguments are genuinely optional must not be caught ─────────
+// A false positive here would break working calls.
+for (const [name, args] of [
+  ['find_polygon_arbitrage', {}],
+  ['find_avalanche_arbitrage', {}],
+  ['get_treasury_yield_curve', {}],
+]) {
+  check(`${name} with no arguments still passes validation`,
+    mustExist(name) && !BLOCKED.test(await callText(name, args)));
 }
 
-// Local tools answer without any network at all.
-check('list_chains answers locally', /"chains"/.test(await callText('list_chains', {})));
+// ── the local tool answers with no network at all ──────────────────────────
+check('get_spend_budget answers locally',
+  /"maxSpendUsd"/.test(await callText('get_spend_budget', {})));
 check('an unknown tool is rejected', /unknown tool/i.test(await callText('nope_not_a_tool', {})));
 
+// ── the tool list IS the catalogue: 12 route tools + 1 local ───────────────
+//
+// A floor would not catch this. The claim 1.7.0 makes is that the tool list and
+// the listed storefront are the same set, and a tool quietly added back breaks
+// that claim exactly as badly as one quietly lost. So assert the count and the
+// names. scripts/check-coverage.mjs proves the other half — that these names
+// are the ones the gateway lists — but it needs the network and runs only at
+// release. This runs on every commit.
+const EXPECTED = [
+  'find_avalanche_arbitrage', 'find_polygon_arbitrage', 'get_avalanche_pool_reserves',
+  'get_base_liquidity', 'get_company_dossier', 'get_polygon_token_price',
+  'get_sec_events', 'get_sec_filings', 'get_sec_insiders', 'get_spend_budget',
+  'get_treasury_yield_curve', 'get_v4_hook_risk', 'lookup_lei',
+];
+const actual = [...published].sort();
+check('the published tool list is exactly the focused set',
+  actual.length === EXPECTED.length && actual.every((n, i) => n === EXPECTED[i]),
+  `${actual.length} tools: ${actual.join(', ')}`);
+
+// Every priced tool must name its price, or an agent cannot weigh the cost
+// before spending its principal's money.
+const unpriced = tools.filter((t) => t.name !== 'get_spend_budget' && !/\$\d+\.\d{2} USDC/.test(t.description));
+check('every route tool states its price in USDC', unpriced.length === 0,
+  unpriced.map((t) => t.name).join(', ') || 'all 12 priced');
+
+// ★ POSITIVE PROOF THAT THE REDIRECTION WORKED. [positive-probe]
+//
+//   Every assertion above is satisfied by an error string, so all of them would
+//   still pass if X402_BASE were ignored and the calls went back to production —
+//   which is the failure being fixed, and it would be invisible. Five cases here
+//   pass validation and therefore fetch. Assert that five requests arrived HERE.
+const EXPECTED_FETCHES = ['/lei', '/edgar/events', '/polygon/scan', '/avalanche/scan', '/treasury'];
+check('every validating call went to the loopback replay, not the gateway',
+  replayHits.length === EXPECTED_FETCHES.length
+  && EXPECTED_FETCHES.every((p) => replayHits.includes(p)),
+  `${replayHits.length} request(s): ${replayHits.join(', ')}`);
+
 child.kill('SIGTERM');
+replay.close();
 console.log(failures ? `\n${failures} argument-validation check(s) FAILED` : '\nall argument-validation checks pass');
 process.exit(failures ? 1 : 0);

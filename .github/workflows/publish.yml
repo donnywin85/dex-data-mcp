@@ -114,14 +114,22 @@ jobs:
               const init = got.find(r => r.id === 1), list = got.find(r => r.id === 2);
               if (!init?.result?.serverInfo?.name) { console.error("initialize failed"); process.exit(1); }
               const tools = list?.result?.tools || [];
-              // A FLOOR, not an exact count — raise it when tools are added, so a
-              // regression that silently drops tools still fails the build. It sat
-              // at 6 while the package shipped 13: a floor that far below reality
-              // cannot catch losing half the catalogue. 23 since 1.6.0 added the
-              // paid get_dex_spread tool (P1, collapse to one client).
-              const FLOOR = 23;
-              if (tools.length < FLOOR) {
-                console.error(`expected at least ${FLOOR} tools, got ${tools.length}: ${tools.map(t => t.name).join(", ")}`);
+              // ★ AN EXACT COUNT SINCE 1.7.0, NOT A FLOOR.
+              //
+              //   A floor was right while the catalogue only ever grew: it caught a
+              //   release that silently dropped tools, and it was raised by hand as
+              //   tools were added. 1.7.0 makes a different claim — that the tool
+              //   list IS the listed catalogue of the gateway, 12 routes plus one local
+              //   tool — and a floor cannot catch the way that claim breaks. A tool
+              //   added back for an unlisted route passes any floor while making the
+              //   statement false. scripts/check-coverage.mjs above proves these 13
+              //   are the right 13 against the live storefront; this proves the
+              //   count survived packaging.
+              const EXPECTED = 13;
+              if (tools.length !== EXPECTED) {
+                console.error(`expected exactly ${EXPECTED} tools, got ${tools.length}: ${tools.map(t => t.name).join(", ")}`);
+                console.error("If the listed catalogue really changed, change this number and the");
+                console.error("expectations in check-coverage together — never this one alone.");
                 process.exit(1);
               }
               console.log(`OK: ${init.result.serverInfo.name} v${init.result.serverInfo.version}, ${tools.length} tools`);
